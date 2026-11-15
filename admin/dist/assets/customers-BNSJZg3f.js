@@ -1,0 +1,1 @@
+import{d as o}from"./index-B5OiKyJI.js";const r=()=>o("/admin/customers"),m=s=>o("/admin/customers/"+s+"/reset-password",{method:"POST"}),d=(s,t,a)=>o("/admin/customers/"+s+"/tags",{method:"PUT",body:{tags:t,note:a}});export{r as l,m as r,d as s};

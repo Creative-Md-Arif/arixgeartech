@@ -1,0 +1,1 @@
+import{d as e}from"./index-B5OiKyJI.js";const o=()=>e("/categories",{}),i=()=>e("/admin/categories"),c=a=>e("/admin/categories",{method:"POST",form:a}),m=(a,t)=>e("/admin/categories/"+a,{method:"PUT",form:t}),r=a=>e("/admin/categories/"+a,{method:"DELETE"});export{i as a,c,o as l,r,m as u};

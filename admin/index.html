@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script>try{if(localStorage.getItem('forged_admin_lang')==='bn')document.documentElement.lang='bn';}catch(e){}</script>
+  <title>ArixGear — Admin</title>
+  <meta name="robots" content="noindex">
+  <!-- Typography: Space Grotesk — self-hosted variable font (weights 300–700) -->
+  <link rel="preload" href="/admin/fonts/SpaceGrotesk-var.woff2" as="font" type="font/woff2" crossorigin>
+  <script type="module" src="/src/main.jsx"></script>
+</head>
+<body>
+  <div id="root"></div>
+  <script>/* apply the saved theme BEFORE first paint (no flash) */try{var t=localStorage.getItem('adminTheme');if(t!=='light'&&t!=='dark')t='dark';document.documentElement.setAttribute('data-theme',t);}catch(e){document.documentElement.setAttribute('data-theme','dark');}</script>
+  <script>window.__errAll=[];window.addEventListener("error",function(e){window.__errAll.push(String(e.message||e))});window.addEventListener("unhandledrejection",function(e){window.__errAll.push("REJ:"+String(e.reason&&e.reason.message||e.reason))});</script>
+</body>
+</html>

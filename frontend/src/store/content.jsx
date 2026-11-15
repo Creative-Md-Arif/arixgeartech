@@ -1,0 +1,134 @@
+/* ArixGear store — site content + live settings + home content (100% admin-driven).
+   All fetches go through src/services/*; shells are EMPTY (same key shapes) — the
+   backend serves contentDefaults merged into /settings/content, so no client copy. */
+import { createContext, useContext, useEffect, useState } from 'react';
+import { getContent, getPayment, getShipping } from '../services/settings.js';
+import { listBanners } from '../services/banners.js';
+import { listHomeSections } from '../services/sections.js';
+import { getCategoryTree } from '../services/categories.js';
+
+/* empty shells — filled (or replaced) by the API responses */
+export const EMPTY_PAY_INFO = {
+  bkash: { label: 'bKash', num: '', ussd: '', type: 'Send Money', who: '' },
+  nagad: { label: 'Nagad', num: '', ussd: '', type: 'Send Money', who: '' },
+  rocket: { label: 'Rocket', num: '', ussd: '', type: 'Send Money', who: '' },
+};
+const EMPTY_SHIP = { freeThreshold: 0, divisions: {} };
+const EMPTY_CONTENT = {
+  site: {}, newsletter: {}, about: {}, contact: {}, hero: {},
+  faqs: [], guides: {}, posts: null,
+};
+
+function readHomeCache(key, fallback) {
+  try {
+    const value = JSON.parse(localStorage.getItem(key) || 'null');
+    return value && typeof value === 'object' ? value : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+const Ctx = createContext(null);
+
+export function ContentProvider({ children }) {
+  const [content, setContent] = useState(EMPTY_CONTENT);
+  const [payInfo, setPayInfo] = useState(EMPTY_PAY_INFO);
+  const [shipCfg, setShipCfg] = useState(EMPTY_SHIP);
+  const [heroSlides, setHeroSlides] = useState([]);
+  const [sideBanners, setSideBanners] = useState(() => {
+    const cached = readHomeCache('forged_home_side_banners', null);
+    return Array.isArray(cached) ? cached : [];
+  });   /* Phase 3 — hero side promos */
+  const [catTree, setCatTree] = useState([]);           /* Phase 3 — secondary category navbar */
+  const [catTreeReady, setCatTreeReady] = useState(false);
+  const [homeSections, setHomeSections] = useState(() => {
+    const cached = readHomeCache('forged_home_sections', null);
+    return cached && Array.isArray(cached.items) && Array.isArray(cached.hidden)
+      ? cached
+      : { items: [], hidden: [] };
+  });
+  const [homeDataReady, setHomeDataReady] = useState(false);
+
+  useEffect(() => {
+    const requests = [
+      getContent().then((d) => { if (d && d.content) setContent({ ...EMPTY_CONTENT, ...d.content }); }),
+      getPayment().then((d) => {
+        if (d && d.payments) {
+          const next = { ...EMPTY_PAY_INFO };
+          ['bkash', 'nagad', 'rocket'].forEach((k) => {
+            const p = d.payments[k];
+            if (p) next[k] = { label: p.label || k, num: p.number || '', ussd: p.ussd || '', type: p.type || 'Send Money', who: (p.label || k) + ' Personal' };
+          });
+          setPayInfo(next);
+        }
+      }),
+      getShipping().then((d) => {
+        if (d && d.shipping) {
+          setShipCfg({ freeThreshold: d.shipping.freeThreshold > 0 ? d.shipping.freeThreshold : 0, divisions: d.shipping.divisions || {} });
+        }
+      }),
+      listBanners('hero').then((d) => { if (d && d.items) setHeroSlides(d.items); }),
+      listBanners('side').then((d) => {
+        if (d && d.items) {
+          const items = d.items.slice(0, 2);
+          setSideBanners(items);
+          try { localStorage.setItem('forged_home_side_banners', JSON.stringify(items)); } catch {}
+        }
+      }), /* spec: 2 side promos */
+      getCategoryTree()
+        .then((d) => { if (d && d.items) setCatTree(d.items); })
+        .finally(() => setCatTreeReady(true)),
+      listHomeSections().then((d) => {
+        if (d && d.items) {
+          const next = { items: d.items, hidden: d.hidden || [] };
+          setHomeSections(next);
+          try { localStorage.setItem('forged_home_sections', JSON.stringify(next)); } catch {}
+        }
+      }),
+    ];
+    Promise.allSettled(requests).then(() => setHomeDataReady(true));
+  }, []);
+
+  /* Homepage admins can update sections while the storefront tab is open.
+     Revalidate the section list when the tab becomes active and periodically
+     so active/hidden changes do not require a hard refresh. */
+  useEffect(() => {
+    const refreshHomeSections = () => {
+      if (document.visibilityState === 'hidden') return;
+      listHomeSections().then((d) => {
+        if (!d || !d.items) return;
+        const next = { items: d.items, hidden: d.hidden || [] };
+        setHomeSections(next);
+        try { localStorage.setItem('forged_home_sections', JSON.stringify(next)); } catch {}
+      }).catch(() => {});
+    };
+    const onFocus = () => refreshHomeSections();
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onFocus);
+    const timer = window.setInterval(refreshHomeSections, 15000);
+    return () => {
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onFocus);
+      window.clearInterval(timer);
+    };
+  }, []);
+
+  const divCharge = (k) => {
+    const d = shipCfg.divisions || {};
+    return d[k] != null ? d[k] : (d.dhaka != null ? d.dhaka : 0);
+  };
+  const sectionCfg = (key) => {
+    const it = homeSections.items.find((x) => x.key === key);
+    return it ? it.config || {} : {};
+  };
+  const sectionVisible = (key) => !homeSections.hidden.includes(key);
+
+  const value = {
+    content, payInfo, shipCfg, heroSlides, sideBanners, catTree, catTreeReady, homeSections: homeSections.items, homeDataReady,
+    hiddenSections: homeSections.hidden, divCharge, sectionCfg, sectionVisible,
+    FREE_SHIP: shipCfg.freeThreshold,
+  };
+  return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
+}
+
+export const useContent = () => useContext(Ctx);

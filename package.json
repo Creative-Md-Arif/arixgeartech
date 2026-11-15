@@ -1,0 +1,16 @@
+{
+  "name": "arixgear.tech",
+  "private": true,
+  "version": "2.0.0",
+  "description": "arixgear.tech — Tech & Gadget E-commerce (React storefront + React admin + Express/MongoDB API, ৳ BDT)",
+  "scripts": {
+    "mongo": "node backend/scripts/dev-mongo.js",
+    "seed": "node backend/src/seed/seed.js",
+    "start": "node backend/server.js",
+    "dev": "node backend/server.js",
+    "install:all": "cd backend && npm i && cd ../frontend && npm i && cd ../admin && npm i",
+    "build": "cd frontend && npm run build && cd ../admin && npm run build",
+    "build:storefront": "cd frontend && npm run build",
+    "build:admin": "cd admin && npm run build"
+  }
+}

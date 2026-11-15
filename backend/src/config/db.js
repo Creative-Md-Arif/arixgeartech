@@ -1,0 +1,49 @@
+require('dotenv').config();
+const mongoose = require('mongoose');
+
+const DEFAULT_URI = 'mongodb://127.0.0.1:27017/arixgear';
+
+/* Task 30 — replica-set detection (MongoDB Transactions need a replica set /
+   Atlas M10+). Cached after the first connect; consumed by the boot report
+   and the admin system/status checklist. */
+let REPLICA_SET = null; // null = unknown (not connected yet)
+
+async function detectReplicaSet() {
+  if (REPLICA_SET !== null) return REPLICA_SET;
+  try {
+    const hello = await mongoose.connection.admin().command({ hello: 1 });
+    REPLICA_SET = Boolean(hello && hello.setName);
+  } catch (_e) {
+    REPLICA_SET = false;
+  }
+  return REPLICA_SET;
+}
+
+function replicaSetKnown() {
+  return REPLICA_SET;
+}
+
+async function connectDB() {
+  const uri = process.env.MONGODB_URI || DEFAULT_URI;
+  if (!process.env.MONGODB_URI) {
+    console.warn('[db] MONGODB_URI not set — using local default:', DEFAULT_URI);
+    console.warn('[db] For production use MongoDB Atlas: MONGODB_URI=mongodb+srv://...');
+  }
+  mongoose.set('strictQuery', true);
+  await mongoose.connect(uri);
+  console.log('[db] MongoDB connected →', mongoose.connection.name);
+  const rs = await detectReplicaSet();
+  console.log(`[db] replica set: ${rs ? 'YES — transactions available' : 'no — order flows run in fallback mode (no multi-doc transactions)'}`);
+  return rs;
+}
+
+/* masked URI for the admin status page — never leak credentials */
+function maskedUri() {
+  const uri = process.env.MONGODB_URI || DEFAULT_URI;
+  return uri.replace(/(\/\/[^:/@]+):([^@]*)@/, '$1:***@');
+}
+
+module.exports = connectDB;
+module.exports.detectReplicaSet = detectReplicaSet;
+module.exports.replicaSetKnown = replicaSetKnown;
+module.exports.maskedUri = maskedUri;
