@@ -1,5 +1,5 @@
 /* ArixGear ADMIN services — sales reports (manual vs online, day/month buckets) */
-import { api } from './http.js';
+import { api, API } from './http.js';
 
 /* GET /api/admin/reports/sales?granularity=day|month&from=&to= (Dhaka dates, inclusive) */
 export const sales = (params = {}) => api('/admin/reports/sales?' + new URLSearchParams(params).toString());
@@ -7,8 +7,7 @@ export const sales = (params = {}) => api('/admin/reports/sales?' + new URLSearc
 /* GET /api/admin/reports/sales.csv — raw CSV text for the browser download */
 export const salesCsv = async (params = {}) => {
   const qs = new URLSearchParams(params).toString();
-  const base = localStorage.getItem('forged_api_base') || location.origin + '/api';
-  const res = await fetch(base + '/admin/reports/sales.csv' + (qs ? '?' + qs : ''), {
+  const res = await fetch(API + '/admin/reports/sales.csv' + (qs ? '?' + qs : ''), {
     headers: { Authorization: 'Bearer ' + (localStorage.getItem('forged_admin_token') || '') },
   });
   if (!res.ok) {

@@ -1,5 +1,5 @@
 /* ArixGear ADMIN services — orders (list, detail, payment verify/reject, status, courier, CSV) */
-import { api } from './http.js';
+import { api, API } from './http.js';
 
 export const list = (params = {}) => {
   const q = new URLSearchParams(params).toString();
@@ -25,8 +25,7 @@ export const setCourier = (id, body) => api('/admin/orders/' + id + '/courier', 
 /* GET /api/admin/orders/export.csv?status=&method=&search= — raw CSV text (admin downloads) */
 export const exportCsv = async (params = {}) => {
   const qs = new URLSearchParams(params).toString();
-  const base = localStorage.getItem('forged_api_base') || location.origin + '/api';
-  const res = await fetch(base + '/admin/orders/export.csv' + (qs ? '?' + qs : ''), {
+  const res = await fetch(API + '/admin/orders/export.csv' + (qs ? '?' + qs : ''), {
     headers: { Authorization: 'Bearer ' + (localStorage.getItem('forged_admin_token') || '') },
   });
   if (!res.ok) throw new Error('Export failed (' + res.status + ')');

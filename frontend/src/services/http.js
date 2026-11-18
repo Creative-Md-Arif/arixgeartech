@@ -8,6 +8,8 @@ const LOCAL_ORIGIN = (typeof location !== 'undefined')
 const API_BASE = (function () {
   const s = localStorage.getItem('forged_api_base');
   if (s && LOCAL_ORIGIN) return s;
+  const configured = String(import.meta.env.VITE_API_URL || '').trim().replace(/\/+$/, '');
+  if (configured) return configured.endsWith('/api') ? configured : configured + '/api';
   return location.protocol === 'file:' ? 'http://localhost:5000/api' : location.origin + '/api';
 })();
 

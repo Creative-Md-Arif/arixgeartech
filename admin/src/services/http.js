@@ -2,6 +2,8 @@
 const API_BASE = (function () {
   const s = localStorage.getItem('forged_api_base');
   if (s) return s;
+  const configured = String(import.meta.env.VITE_API_URL || '').trim().replace(/\/+$/, '');
+  if (configured) return configured.endsWith('/api') ? configured : configured + '/api';
   return location.origin + '/api';
 })();
 
