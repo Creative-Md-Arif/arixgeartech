@@ -55,15 +55,18 @@ async function importCreate(req, res) {
 async function importList(req, res) {
   const { status, limit = 40, page = 1 } = req.query;
   const q = status && status !== 'all' ? { status } : {};
-  const lim = Math.min(parseInt(limit, 10) || 40, 100);
-  const skip = (Math.max(parseInt(page, 10) || 1, 1) - 1) * lim;
+  const parsedLimit = parseInt(limit, 10);
+  const parsedPage = parseInt(page, 10);
+  const lim = Number.isFinite(parsedLimit) ? Math.min(Math.max(parsedLimit, 1), 100) : 40;
+  const currentPage = Number.isFinite(parsedPage) ? Math.max(parsedPage, 1) : 1;
+  const skip = (currentPage - 1) * lim;
   const [items, total, counts] = await Promise.all([
     AiImport.find(q).sort({ createdAt: -1 }).skip(skip).limit(lim).populate('duplicates.productId', 'name slug').populate('brand', 'name slug').lean(),
     AiImport.countDocuments(q),
     AiImport.aggregate([{ $group: { _id: '$status', n: { $sum: 1 } } }]),
   ]);
   res.json({
-    items, total, page: parseInt(page, 10) || 1, pages: Math.ceil(total / lim) || 1,
+    items, total, page: currentPage, limit: lim, pages: Math.ceil(total / lim) || 1,
     counts: Object.fromEntries(counts.map((c) => [c._id, c.n])),
   });
 }
@@ -81,7 +84,13 @@ async function importEdit(req, res) {
   if (b.price !== undefined) doc.price = Math.max(0, Number(b.price) || 0);
   if (b.comparePrice !== undefined) doc.comparePrice = b.comparePrice === null || b.comparePrice === '' ? null : Math.max(0, Number(b.comparePrice) || 0);
   if (b.category !== undefined) doc.category = String(b.category).toLowerCase().trim();
-  if (b.brandId !== undefined) doc.brand = b.brandId && b.brandId !== 'none' ? b.brandId : null;
+  if (b.categoryManual !== undefined) {
+    doc.categoryManual = b.categoryManual === true;
+    doc.manualCategoryName = doc.categoryManual ? String(b.category || '').trim().slice(0, 80) : '';
+  }
+  if (b.categoryParent !== undefined) doc.categoryParent = String(b.categoryParent || '').toLowerCase().trim().slice(0, 80);
+  if (b.brandId !== undefined) doc.brand = b.brandId && !['none', 'create'].includes(b.brandId) ? b.brandId : null;
+  if (b.brandName !== undefined) doc.brandName = String(b.brandName || '').trim().slice(0, 80);
   if (b.warrantyMonths !== undefined) doc.warrantyMonths = Math.max(0, Math.min(240, parseInt(b.warrantyMonths, 10) || 0));
   if (Array.isArray(b.images)) {
     doc.images = b.images
@@ -232,7 +241,7 @@ async function importSuggestMapping(req, res) {
           maxTokens: 700,
           timeoutMs: 12000,
         });
-        const parsed = provider.parseJsonLoose(out);
+        const parsed = provider.parseJsonLoose(out.text);
         const list = parsed && Array.isArray(parsed.suggestions) ? parsed.suggestions : (Array.isArray(parsed) ? parsed : null);
         if (list) {
           const known = new Set(specs.map((s) => s.k.toLowerCase()));
@@ -280,12 +289,26 @@ async function importUpdateDiff(req, res) {
 async function importRetry(req, res) {
   const doc = await AiImport.findById(req.params.id);
   if (!doc) return res.status(404).json({ message: 'Import not found' });
-  doc.status = 'pending';
-  doc.error = '';
-  doc.progress = 0;
-  await doc.save();
-  importer.processImport(doc._id); // async — client polls
-  res.json({ item: doc });
+  const updatedAt = new Date(doc.updatedAt || doc.createdAt).getTime();
+  const stale = ['pending', 'processing'].includes(doc.status) &&
+    Number.isFinite(updatedAt) &&
+    Date.now() - updatedAt >= importer.IMPORT_STALE_MS;
+  if (doc.status !== 'failed' && !stale) {
+    return res.status(409).json({ message: 'Only failed or stalled imports can be retried' });
+  }
+  const queued = await AiImport.findOneAndUpdate(
+    { _id: doc._id, status: doc.status, updatedAt: doc.updatedAt },
+    {
+      $set: { status: 'pending', error: '', progress: 0 },
+      $unset: { processingToken: 1 },
+    },
+    { new: true },
+  );
+  if (!queued) return res.status(409).json({ message: 'Import changed before it could be retried' });
+  importer.processImport(queued._id).catch((error) => {
+    console.error(`[ai-import] retry failed for ${queued._id}:`, error.message);
+  });
+  res.json({ item: queued });
 }
 
 async function importDelete(req, res) {

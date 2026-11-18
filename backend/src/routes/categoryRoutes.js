@@ -15,7 +15,11 @@ router.get('/', async (_req, res, next) => {
       Category.find({ active: true }).sort({ order: 1 }).lean(),
       Product.aggregate([
         { $match: { active: true } },
-        { $project: { paths: '$categoryPath' } },
+        { $project: { paths: { $cond: [
+          { $gt: [{ $size: { $ifNull: ['$categoryPath', []] } }, 0] },
+          '$categoryPath',
+          ['$category'],
+        ] } } },
         { $unwind: '$paths' },
         { $group: { _id: '$paths', n: { $sum: 1 } } },
       ]),

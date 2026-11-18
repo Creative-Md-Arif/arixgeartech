@@ -10,6 +10,11 @@ const cleanTags = (t) =>
   Array.isArray(t)
     ? [...new Set(t.map((x) => String(x).trim().toLowerCase()).filter(Boolean).slice(0, 8))]
     : [];
+const parseBoolean = (value) => {
+  if (value === true || value === 'true') return true;
+  if (value === false || value === 'false') return false;
+  return null;
+};
 
 /* ── PUBLIC ─────────────────────────────────────────────────────── */
 
@@ -62,7 +67,8 @@ exports.adminCreate = async (req, res, next) => {
     const base = Post.slugify(b.slug || b.title);
     let slug = base, n = 2;
     while (await Post.exists({ slug })) slug = `${base}-${n++}`;
-    const published = Boolean(b.published);
+    const published = parseBoolean(b.published ?? false);
+    if (published === null) return res.status(400).json({ error: 'Published must be a boolean' });
     const post = await Post.create({
       title: String(b.title).trim(),
       titleBn: String(b.titleBn || '').trim().slice(0, 140), // Task 58 — Bengali headline
@@ -118,8 +124,10 @@ exports.adminUpdate = async (req, res, next) => {
     if (b.seoTitle != null) post.seoTitle = String(b.seoTitle).trim().slice(0, 140);
     if (b.seoDescription != null) post.seoDescription = String(b.seoDescription).trim().slice(0, 320);
     if (b.published != null) {
+      const nextPublished = parseBoolean(b.published);
+      if (nextPublished === null) return res.status(400).json({ error: 'Published must be a boolean' });
       const was = post.published;
-      post.published = Boolean(b.published);
+      post.published = nextPublished;
       if (post.published && !was) post.publishedAt = post.publishedAt || new Date();
       if (!post.published) post.publishedAt = post.publishedAt; /* keep stamp for re-publish ordering */
     }

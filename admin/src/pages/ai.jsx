@@ -57,6 +57,300 @@ const IMP_CHIP = {
   rejected: "border-line2 text-dim2",
   failed: "border-red/40 text-red",
 };
+const IMPORT_STALE_MS = 10 * 60 * 1000;
+
+function categoryParentId(category) {
+  const parent = category?.parent;
+  if (!parent) return "";
+  if (typeof parent === "object") {
+    return String(
+      parent._id ||
+        (typeof parent.toHexString === "function" ? parent.toHexString() : "") ||
+        parent.id ||
+        parent,
+    );
+  }
+  return String(parent);
+}
+
+function CategoryTreePicker({
+  categories = [],
+  value = "",
+  onChange,
+  placeholder = "Select a category",
+  ariaLabel = "Category",
+  allowEmpty = false,
+  emptyLabel = "— none —",
+  extraOptions = [],
+  className = "",
+}) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const [expanded, setExpanded] = useState(() => new Set());
+  const rootRef = useRef(null);
+  const searchRef = useRef(null);
+  const tree = useMemo(() => {
+    const nodes = (categories || [])
+      .filter((category) => category?.slug)
+      .map((category) => ({
+        category,
+        id: String(category._id || category.slug),
+        parentId: categoryParentId(category),
+        children: [],
+      }));
+    const byId = new Map();
+    nodes.forEach((node) => {
+      byId.set(node.id, node);
+      byId.set(String(node.category.slug), node);
+    });
+    const roots = [];
+    nodes.forEach((node) => {
+      const parent = byId.get(node.parentId);
+      if (parent && parent !== node) parent.children.push(node);
+      else roots.push(node);
+    });
+    const sortNodes = (list) => {
+      list.sort((a, b) =>
+        (a.category.order || 0) - (b.category.order || 0) ||
+        String(a.category.name || "").localeCompare(String(b.category.name || "")),
+      );
+      list.forEach((node) => sortNodes(node.children));
+    };
+    sortNodes(roots);
+    return { roots, byId, nodes };
+  }, [categories]);
+
+  const normalizedSearch = search.trim().toLocaleLowerCase();
+  const visibleRows = useMemo(() => {
+    const included = new Set();
+    const matches = (node) => {
+      const labels = [];
+      let current = node;
+      const visited = new Set();
+      while (current && !visited.has(current.id)) {
+        visited.add(current.id);
+        labels.push(
+          current.category.name,
+          current.category.nameBn,
+          current.category.slug,
+        );
+        current = tree.byId.get(current.parentId);
+      }
+      return labels
+        .filter(Boolean)
+        .join(" ")
+        .toLocaleLowerCase()
+        .includes(normalizedSearch);
+    };
+
+    if (normalizedSearch) {
+      tree.nodes.forEach((node) => {
+        if (!matches(node)) return;
+        let current = node;
+        const visited = new Set();
+        while (current && !visited.has(current.id)) {
+          visited.add(current.id);
+          included.add(current.id);
+          current = tree.byId.get(current.parentId);
+        }
+      });
+    }
+
+    const rows = [];
+    const visit = (nodes, depth) => {
+      nodes.forEach((node) => {
+        if (normalizedSearch && !included.has(node.id)) return;
+        rows.push({ node, depth });
+        if (
+          node.children.length &&
+          (normalizedSearch || expanded.has(node.id))
+        ) {
+          visit(node.children, depth + 1);
+        }
+      });
+    };
+    visit(tree.roots, 0);
+    return rows;
+  }, [expanded, normalizedSearch, tree]);
+
+  const selectedNode = tree.nodes.find((node) => node.category.slug === value);
+  let selectedPath = [];
+  for (
+    let node = selectedNode;
+    node && !selectedPath.includes(node.id);
+    node = tree.byId.get(node.parentId)
+  ) {
+    selectedPath.unshift(node.category.name || node.category.slug);
+  }
+  const selectedLabel =
+    selectedPath.join(" › ") ||
+    extraOptions.find((option) => option.value === value)?.label ||
+    value ||
+    placeholder;
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const closeOnOutsideClick = (event) => {
+      if (!rootRef.current?.contains(event.target)) setOpen(false);
+    };
+    const closeOnEscape = (event) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("mousedown", closeOnOutsideClick);
+    document.addEventListener("keydown", closeOnEscape);
+    searchRef.current?.focus();
+    return () => {
+      document.removeEventListener("mousedown", closeOnOutsideClick);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [open]);
+
+  const select = (nextValue) => {
+    onChange(nextValue);
+    setOpen(false);
+    setSearch("");
+  };
+  const toggleExpanded = (id) => {
+    setExpanded((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  return (
+    <div ref={rootRef} className={"relative min-w-0 " + className}>
+      <button
+        type="button"
+        aria-label={ariaLabel}
+        aria-haspopup="tree"
+        aria-expanded={open}
+        onClick={() => setOpen((current) => !current)}
+        className={INP + " flex w-full items-center justify-between gap-2 text-left"}
+      >
+        <span className={"min-w-0 truncate " + (value ? "text-txt" : "text-dim")}>
+          {selectedLabel}
+        </span>
+        <span aria-hidden="true" className="shrink-0 text-dim">
+          {open ? "⌃" : "⌄"}
+        </span>
+      </button>
+      {open ? (
+        <div className="absolute left-0 right-0 top-full z-[70] mt-1 overflow-hidden rounded-xl border border-line2 bg-panel shadow-xl">
+          <div className="border-b border-line p-2">
+            <input
+              ref={searchRef}
+              type="search"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Search category / ক্যাটাগরি খুঁজুন"
+              aria-label="Search categories"
+              className={INP + " w-full"}
+            />
+          </div>
+          <div className="max-h-72 overflow-y-auto p-1.5">
+            {allowEmpty ? (
+              <button
+                type="button"
+                onClick={() => select("")}
+                className={
+                  "mb-1 flex w-full items-center rounded-lg px-2.5 py-2 text-left text-[11.5px] hover:bg-bg " +
+                  (!value ? "bg-acc/10 text-acc" : "text-dim")
+                }
+              >
+                {emptyLabel}
+              </button>
+            ) : null}
+            {extraOptions
+              .filter((option) =>
+                !normalizedSearch ||
+                `${option.label} ${option.value}`
+                  .toLocaleLowerCase()
+                  .includes(normalizedSearch),
+              )
+              .map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => select(option.value)}
+                  className={
+                    "mb-1 flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-left text-[11.5px] hover:bg-bg " +
+                    (value === option.value ? "bg-acc/10 text-acc" : "text-txt")
+                  }
+                >
+                  <span className="truncate">{option.label}</span>
+                  {value === option.value ? <span aria-hidden="true">✓</span> : null}
+                </button>
+              ))}
+            <div role="tree" aria-label="Categories">
+              {visibleRows.map(({ node, depth }) => {
+                const category = node.category;
+                const hasChildren = node.children.length > 0;
+                const isExpanded = normalizedSearch || expanded.has(node.id);
+                const isSelected = category.slug === value;
+                return (
+                  <div
+                    key={node.id}
+                    role="treeitem"
+                    aria-level={depth + 1}
+                    aria-expanded={hasChildren ? Boolean(isExpanded) : undefined}
+                    aria-selected={isSelected}
+                    className={
+                      "mb-0.5 flex min-w-0 items-center rounded-lg hover:bg-bg " +
+                      (isSelected ? "bg-acc/10 text-acc" : "text-txt")
+                    }
+                    style={{ paddingLeft: 6 + depth * 14 }}
+                  >
+                    {hasChildren ? (
+                      <button
+                        type="button"
+                        aria-label={`${isExpanded ? "Collapse" : "Expand"} ${category.name}`}
+                        onClick={() => toggleExpanded(node.id)}
+                        className="flex h-8 w-7 shrink-0 items-center justify-center text-dim hover:text-acc"
+                      >
+                        {isExpanded ? "⌄" : "›"}
+                      </button>
+                    ) : (
+                      <span className="w-7 shrink-0" aria-hidden="true" />
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => select(category.slug)}
+                      className="flex min-w-0 flex-1 items-center justify-between gap-2 py-2 pr-2 text-left text-[11.5px]"
+                    >
+                      <span className="min-w-0">
+                        <span className="block truncate">{category.name}</span>
+                        {category.nameBn ? (
+                          <span className="block truncate text-[10px] text-dim">
+                            {category.nameBn}
+                          </span>
+                        ) : null}
+                      </span>
+                      {isSelected ? (
+                        <span aria-hidden="true" className="shrink-0 text-acc">✓</span>
+                      ) : null}
+                    </button>
+                  </div>
+                );
+              })}
+              {!visibleRows.length && !extraOptions.some((option) =>
+                !normalizedSearch ||
+                `${option.label} ${option.value}`
+                  .toLocaleLowerCase()
+                  .includes(normalizedSearch),
+              ) ? (
+                <p className="px-3 py-5 text-center text-[11px] text-dim">
+                  No matching categories
+                </p>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
 
 /* ═══════════ IMPORTS ═══════════ */
 function ImportsSection() {
@@ -67,11 +361,13 @@ function ImportsSection() {
   const [counts, setCounts] = useState({});
   const [statusFilter, setStatusFilter] = useState("all");
   const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(20);
   const [pages, setPages] = useState(1);
   const [total, setTotal] = useState(0);
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [detail, setDetail] = useState(null); // opened import for approve flow
+  const [rowAction, setRowAction] = useState(null);
   /* Step 6 — bulk approve selection (ready rows only). Step 7 — per-row
      category override: a mixed queue (laptop + monitor + …) can be approved
      in ONE call with each row landing in its own category. */
@@ -88,6 +384,8 @@ function ImportsSection() {
   const [cats, setCats] = useState([]);
   const [rowCats, setRowCats] = useState({}); // import id → category slug override ('' = import's own guess)
   const [overrideOpen, setOverrideOpen] = useState(false);
+  const listRequest = useRef(null);
+  const listRequestId = useRef(0);
   useEffect(() => {
     AI.categories()
       .then((r) => setCats(r.items || r.categories || []))
@@ -119,7 +417,7 @@ function ImportsSection() {
       setPicked(new Set());
       setRowCats({});
       setOverrideOpen(false);
-      load();
+      load({ force: true, silent: true });
     } catch (e) {
       toast(e.message, "err");
     } finally {
@@ -127,35 +425,52 @@ function ImportsSection() {
     }
   };
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const params = new URLSearchParams({ page: String(page), limit: "40" });
-      if (statusFilter !== "all") params.set("status", statusFilter);
-      const d = await AI.importList(params.toString());
-      setItems(d.items || []);
-      setCounts(d.counts || {});
-      setPages(d.pages || 1);
-      setTotal(d.total || 0);
-    } catch (e) {
-      toast(e.message, "err");
-    } finally {
-      setLoading(false);
+  const load = useCallback(async ({ force = false, silent = false } = {}) => {
+    const requestKey = `${statusFilter}:${page}:${limit}`;
+    if (!force && listRequest.current?.key === requestKey) {
+      return listRequest.current.promise;
     }
-  }, [statusFilter, page]);
+
+    const requestId = ++listRequestId.current;
+    if (!silent) setLoading(true);
+    const request = (async () => {
+      try {
+        const params = new URLSearchParams({
+          page: String(page),
+          limit: String(limit),
+        });
+        if (statusFilter !== "all") params.set("status", statusFilter);
+        const d = await AI.importList(params.toString());
+        if (requestId !== listRequestId.current) return;
+        setItems(d.items || []);
+        setCounts(d.counts || {});
+        setPages(d.pages || 1);
+        setTotal(d.total || 0);
+      } catch (e) {
+        if (requestId === listRequestId.current) toast(e.message, "err");
+      } finally {
+        if (requestId === listRequestId.current && !silent) setLoading(false);
+      }
+    })();
+    listRequest.current = { key: requestKey, promise: request };
+    try {
+      await request;
+    } finally {
+      if (listRequest.current?.promise === request) listRequest.current = null;
+    }
+  }, [statusFilter, page, limit, toast]);
 
   useEffect(() => {
     load();
   }, [load]);
-  useEffect(() => { setPage(1); }, [statusFilter]);
-  /* Refresh active imports after each request finishes; one-shot timers avoid
-     overlapping list queries when the server takes longer than the interval. */
+  /* Poll active imports without covering the current table with loading rows.
+     One-shot timers avoid overlapping list queries when the server is slow. */
   const hasActiveImports = items.some((i) =>
     ["pending", "processing"].includes(i.status),
   );
   useEffect(() => {
     if (!hasActiveImports || loading) return undefined;
-    const timer = setTimeout(load, 5000);
+    const timer = setTimeout(() => load({ silent: true }), 10000);
     return () => clearTimeout(timer);
   }, [hasActiveImports, loading, load]);
 
@@ -174,11 +489,65 @@ function ImportsSection() {
       await AI.importCreate(list);
       setUrls("");
       toast(`${list.length} URL(s) queued for AI import`);
-      load();
+      load({ force: true, silent: true });
     } catch (ex) {
       toast(ex.message, "err");
     } finally {
       setBusy(false);
+    }
+  };
+
+  const isStaleImport = (item) => {
+    const updatedAt = Date.parse(item.updatedAt || item.createdAt || "");
+    return (
+      ["pending", "processing"].includes(item.status) &&
+      Number.isFinite(updatedAt) &&
+      Date.now() - updatedAt >= IMPORT_STALE_MS
+    );
+  };
+
+  const retryImport = async (item) => {
+    setRowAction({ id: item._id, action: "retry" });
+    try {
+      await AI.importRetry(item._id);
+      toast("Import re-queued");
+      await load({ force: true, silent: true });
+    } catch (e) {
+      toast(e.message, "err");
+    } finally {
+      setRowAction(null);
+    }
+  };
+
+  const removeImport = async (item) => {
+    const productName = item.aiContent?.name || item.extracted?.name || item.host || item.sourceUrl;
+    if (
+      !(await confirm({
+        title: "Delete import",
+        body: `Permanently delete "${productName}" from the import queue?${item.status === "imported" ? " The created product will not be deleted." : ""}`,
+        danger: true,
+        ok: "Delete",
+      }))
+    ) return;
+    setRowAction({ id: item._id, action: "delete" });
+    try {
+      await AI.importDelete(item._id);
+      setPicked((current) => {
+        const next = new Set(current);
+        next.delete(item._id);
+        return next;
+      });
+      setRowCats((current) => {
+        const next = { ...current };
+        delete next[item._id];
+        return next;
+      });
+      toast("Import deleted");
+      await load({ force: true, silent: true });
+    } catch (e) {
+      toast(e.message, "err");
+    } finally {
+      setRowAction(null);
     }
   };
 
@@ -196,7 +565,7 @@ function ImportsSection() {
         item={detail}
         onBack={() => {
           setDetail(null);
-          load();
+          load({ force: true, silent: true });
         }}
       />
     );
@@ -225,9 +594,10 @@ function ImportsSection() {
         />
         <div className="mt-3 flex items-center justify-between">
           <p className="text-[11px] text-dim">
-            Extraction: JSON-LD → OpenGraph → DOM heuristics · Rewrite: your
-            configured AI provider (fallback: grounded template) · Images:
-            Cloudinary when configured.
+            Auto-detects product, price, brand, category, specs, features and
+            images from structured data and page content. Category/brand guesses
+            are matched against the catalog and shown for review before approval.
+            Rewrite uses your configured AI provider (or a grounded template).
           </p>
           <button
             id="aiImportSubmit"
@@ -251,7 +621,10 @@ function ImportsSection() {
         ].map((s) => (
           <button
             key={s}
-            onClick={() => setStatusFilter(s)}
+            onClick={() => {
+              setPage(1);
+              setStatusFilter(s);
+            }}
             className={TAB(statusFilter === s)}
           >
             {s} {counts[s] ? `(${counts[s]})` : ""}
@@ -318,23 +691,17 @@ function ImportsSection() {
                       it.extracted?.name ||
                       "(extracting…)"}
                   </span>
-                  <select
+                  <CategoryTreePicker
+                    categories={cats}
                     value={rowCats[id] || ""}
-                    onChange={(e) =>
-                      setRowCats((m) => ({ ...m, [id]: e.target.value }))
+                    onChange={(category) =>
+                      setRowCats((m) => ({ ...m, [id]: category }))
                     }
-                    className="min-w-0 flex-1 rounded border border-line2 bg-bg px-2 py-1 text-[11px] text-txt"
-                    aria-label="Category override"
-                  >
-                    <option value="">
-                      — import guess{guess ? `: ${guess}` : ""} —
-                    </option>
-                    {cats.map((c) => (
-                      <option key={c._id || c.slug} value={c.slug}>
-                        {c.name} ({c.slug})
-                      </option>
-                    ))}
-                  </select>
+                    allowEmpty
+                    emptyLabel={`— import guess${guess ? `: ${guess}` : ""} —`}
+                    ariaLabel={`Category override for ${it.aiContent?.name || it.extracted?.name || "import"}`}
+                    className="min-w-0 flex-1 text-[11px]"
+                  />
                 </div>
               );
             })}
@@ -342,8 +709,44 @@ function ImportsSection() {
         </div>
       ) : null}
 
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-panel px-4 py-3">
+        <div>
+          <p className="text-[12px] font-bold text-txt">Import queue</p>
+          <p className="mt-0.5 text-[11px] text-dim">
+            {total} total · page {page} of {pages}
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            className={GHOST_BTN}
+            onClick={() => load({ force: true })}
+            disabled={loading}
+            title="Refresh import list"
+          >
+            {loading ? "Refreshing…" : "↻ Refresh"}
+          </button>
+          <label className="flex items-center gap-2 text-[11.5px] text-dim">
+            Rows per page
+            <select
+              value={limit}
+              onChange={(event) => {
+                setPage(1);
+                setLimit(Number(event.target.value));
+              }}
+              className={INP + " w-[88px]"}
+              aria-label="Rows per page"
+            >
+              {[10, 20, 40, 80].map((size) => (
+                <option key={size} value={size}>{size}</option>
+              ))}
+            </select>
+          </label>
+        </div>
+      </div>
+
       {loading && items.length === 0 ? (
-        <div className="min-h-[360px] overflow-hidden rounded-xl border border-line bg-panel"><TableSkeleton rows={40} cols={8} /></div>
+        <div className="min-h-[360px] overflow-hidden rounded-xl border border-line bg-panel"><TableSkeleton rows={limit} cols={8} /></div>
       ) : items.length === 0 ? (
         <Empty
           icon="🛸"
@@ -355,7 +758,7 @@ function ImportsSection() {
           className={"relative min-h-[360px] overflow-hidden rounded-xl border border-line bg-panel transition-opacity " + (loading ? "opacity-60" : "opacity-100")}
           id="aiImportTable"
         >
-          {loading ? <div className="absolute inset-0 z-10 overflow-hidden bg-panel"><TableSkeleton rows={items.length || 40} cols={8} /></div> : null}
+          {loading ? <div className="absolute inset-0 z-10 overflow-hidden bg-panel"><TableSkeleton rows={items.length || limit} cols={8} /></div> : null}
           <table className="w-full text-left text-[12.5px]">
             <thead className="bg-panel2 text-[10.5px] uppercase tracking-[.12em] text-dim">
               <tr>
@@ -366,7 +769,7 @@ function ImportsSection() {
                 <th className="px-4 py-2.5">Status</th>
                 <th className="px-4 py-2.5">Dupes</th>
                 <th className="px-4 py-2.5">Rewriter</th>
-                <th className="px-4 py-2.5" />
+                <th className="px-4 py-2.5 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-line/60">
@@ -388,7 +791,9 @@ function ImportsSection() {
                     <p className="font-semibold text-txt">
                       {i.aiContent?.name ||
                         i.extracted?.name ||
-                        "(extracting…)"}
+                        (["pending", "processing"].includes(i.status)
+                          ? "(extracting…)"
+                          : "(product name not found — review)")}
                     </p>
                     <p className="text-[11px] text-dim">
                       {dt(i.createdAt)} · {i.images?.length || 0} images
@@ -412,6 +817,11 @@ function ImportsSection() {
                       {i.status}
                       {i.status === "processing" ? ` ${i.progress}%` : ""}
                     </span>
+                    {isStaleImport(i) ? (
+                      <p className="mt-1 text-[10px] text-orange">
+                        Stalled · retry available
+                      </p>
+                    ) : null}
                     {i.error ? (
                       <p className="mt-1 max-w-[180px] truncate text-[10.5px] text-red">
                         {i.error}
@@ -430,15 +840,37 @@ function ImportsSection() {
                   <td className="px-4 py-2.5 text-dim">
                     {i.meta?.provider || "—"}
                   </td>
-                  <td className="px-4 py-2.5 text-right">
-                    {["ready", "failed", "imported"].includes(i.status) ? (
+                  <td className="whitespace-nowrap px-4 py-2.5 text-right">
+                    <div className="flex justify-end gap-1.5">
+                      {["ready", "failed", "imported"].includes(i.status) ? (
+                        <button
+                          onClick={() => openDetail(i._id)}
+                          className={GHOST_BTN + " px-2 py-1"}
+                          disabled={rowAction?.id === i._id}
+                        >
+                          Open
+                        </button>
+                      ) : null}
+                      {i.status === "failed" || isStaleImport(i) ? (
+                        <button
+                          type="button"
+                          onClick={() => retryImport(i)}
+                          className={ACC_BTN + " px-2 py-1"}
+                          disabled={rowAction?.id === i._id}
+                        >
+                          {rowAction?.id === i._id && rowAction.action === "retry" ? "Retrying…" : "Retry"}
+                        </button>
+                      ) : null}
                       <button
-                        onClick={() => openDetail(i._id)}
-                        className={GHOST_BTN}
+                        type="button"
+                        onClick={() => removeImport(i)}
+                        className={RED_BTN + " px-2 py-1"}
+                        disabled={rowAction?.id === i._id}
+                        title="Delete import record"
                       >
-                        Open
+                        {rowAction?.id === i._id && rowAction.action === "delete" ? "Deleting…" : "Delete"}
                       </button>
-                    ) : null}
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -462,7 +894,7 @@ function ImportDetail({ item: initial, onBack }) {
   const [cats, setCats] = useState([]);
   const [brands, setBrands] = useState([]);
   const [form, setForm] = useState({
-    name: item.aiContent?.name || "",
+    name: item.aiContent?.name || item.extracted?.name || "",
     nameBn: item.aiContent?.nameBn || "",
     shortDesc: item.aiContent?.shortDesc || "",
     shortDescBn: item.aiContent?.shortDescBn || "",
@@ -470,8 +902,12 @@ function ImportDetail({ item: initial, onBack }) {
     descriptionBn: item.aiContent?.descriptionBn || "",
     price: item.price ?? item.extracted?.price ?? "",
     comparePrice: item.comparePrice ?? "",
-    category: item.category || item.categoryGuess || "",
-    brandId: item.brand?._id || "none",
+    category: item.categoryManual ? "" : item.category || item.categoryGuess || "",
+    categoryMode: item.categoryManual ? "manual" : "select",
+    categoryName: item.manualCategoryName || (item.categoryManual ? item.category : "") || item.extracted?.categoryGuess || "",
+    categoryParent: item.categoryParent || "",
+    brandId: item.brand?._id || ((item.brandName || item.extracted?.brandGuess) ? "create" : "none"),
+    brandName: item.brandName || item.extracted?.brandGuess || "",
     warrantyMonths: item.warrantyMonths || 0,
     stock: 10,
     seoTitle: item.aiContent?.seo?.metaTitle || "",
@@ -510,6 +946,7 @@ function ImportDetail({ item: initial, onBack }) {
   /* Step 5 — schema-mapping preview: which extracted attributes already exist
      in the target category (→ mapped) and which will be AUTO-CREATED. */
   const targetCat = (cats || []).find((c) => c.slug === form.category);
+  const detectedCategory = (cats || []).find((c) => c.slug === item.categoryGuess);
   const schemaFields = useMemo(() => {
     const out = [];
     for (const g of (targetCat && targetCat.specGroups) || [])
@@ -694,13 +1131,20 @@ function ImportDetail({ item: initial, onBack }) {
   }, [targetId, mode]); // a new target invalidates the preview
 
   const saveEdits = async () => {
+    if (form.categoryMode === "manual" && !form.categoryName.trim()) {
+      toast("Enter a category name", "err");
+      return;
+    }
     setSaving(true);
     try {
       await AI.importEdit(item._id, {
         price: form.price,
         comparePrice: form.comparePrice === "" ? null : form.comparePrice,
-        category: form.category,
+        category: form.categoryMode === "manual" ? form.categoryName.trim() : form.category,
+        categoryManual: form.categoryMode === "manual",
+        categoryParent: form.categoryMode === "manual" ? form.categoryParent : "",
         brandId: form.brandId,
+        brandName: form.brandName,
         warrantyMonths: form.warrantyMonths,
         aiContent: {
           name: form.name,
@@ -777,6 +1221,10 @@ function ImportDetail({ item: initial, onBack }) {
   };
 
   const approve = async () => {
+    if (form.categoryMode === "manual" && !form.categoryName.trim()) {
+      toast("Enter a category name", "err");
+      return;
+    }
     const payload = {
       name: form.name,
       nameBn: form.nameBn,
@@ -786,8 +1234,11 @@ function ImportDetail({ item: initial, onBack }) {
       descriptionBn: form.descriptionBn,
       price: form.price,
       comparePrice: form.comparePrice === "" ? null : form.comparePrice,
-      category: form.category,
+      category: form.categoryMode === "manual" ? form.categoryName.trim() : form.category,
+      categoryManual: form.categoryMode === "manual",
+      categoryParent: form.categoryMode === "manual" ? form.categoryParent : "",
       brandId: form.brandId,
+      brandName: form.brandName,
       warrantyMonths: form.warrantyMonths,
       stock: form.stock,
       specs,
@@ -1235,24 +1686,102 @@ function ImportDetail({ item: initial, onBack }) {
             </div>
             <div>
               <label className={LBL}>Category</label>
-              <select
-                value={form.category}
-                onChange={set("category")}
-                className={INP + " w-full"}
-              >
-                <option value="">— pick —</option>
-                {(cats || []).map((c) => (
-                  <option key={c._id || c.slug} value={c.slug}>
-                    {c.name} ({c.slug})
-                  </option>
-                ))}
-                {item.categoryGuess &&
-                !(cats || []).some((c) => c.slug === item.categoryGuess) ? (
-                  <option value={item.categoryGuess}>
-                    {item.categoryGuess} (AI guess)
-                  </option>
-                ) : null}
-              </select>
+              <div className="mb-2 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => setForm((current) => ({ ...current, categoryMode: "select" }))}
+                  className={form.categoryMode === "select" ? ACC_BTN : GHOST_BTN}
+                >
+                  Choose existing
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setForm((current) => ({
+                      ...current,
+                      categoryMode: "manual",
+                      categoryName:
+                        current.categoryName ||
+                        cats.find((category) => category.slug === current.category)?.name ||
+                        item.extracted?.categoryGuess ||
+                        "",
+                    }))
+                  }
+                  className={form.categoryMode === "manual" ? ACC_BTN : GHOST_BTN}
+                >
+                  Create manually
+                </button>
+              </div>
+              {form.categoryMode === "manual" ? (
+                <div className="space-y-2">
+                  <input
+                    value={form.categoryName}
+                    onChange={set("categoryName")}
+                    className={INP + " w-full"}
+                    maxLength={80}
+                    placeholder="New category name"
+                    aria-label="New category name"
+                  />
+                  <div>
+                    <label className={LBL}>Parent category (optional)</label>
+                    <CategoryTreePicker
+                      categories={cats}
+                      value={form.categoryParent}
+                      onChange={(categoryParent) =>
+                        setForm((current) => ({ ...current, categoryParent }))
+                      }
+                      placeholder="Root category"
+                      allowEmpty
+                      emptyLabel="Root category"
+                      className="w-full"
+                    />
+                  </div>
+                  <p className="text-[10.5px] text-dim">
+                    The category is created when you approve the product. If its slug already exists, that category is reused.
+                  </p>
+                </div>
+              ) : (
+                <CategoryTreePicker
+                  categories={cats}
+                  value={form.category}
+                  onChange={(category) =>
+                    setForm((current) => ({ ...current, category }))
+                  }
+                  placeholder="— pick —"
+                  allowEmpty
+                  emptyLabel="— pick —"
+                  extraOptions={
+                    item.categoryGuess &&
+                    !cats.some((category) => category.slug === item.categoryGuess)
+                      ? [{
+                          value: item.categoryGuess,
+                          label: `${item.extracted?.categoryGuess || item.categoryGuess} (not in catalog)`,
+                        }]
+                      : []
+                  }
+                  className="w-full"
+                />
+              )}
+              {item.categoryGuess ? (
+                <p className="mt-1 text-[10.5px] text-dim">
+                  Auto-detected: {detectedCategory?.name || item.extracted?.categoryGuess || item.categoryGuess}
+                  {item.autoDetect?.categoryConfidence > 0
+                    ? ` · ${Math.round(item.autoDetect.categoryConfidence * 100)}%`
+                    : ""}
+                  {item.autoDetect?.categorySource === "source"
+                    ? " · from source page; will be created on approval unless mapped"
+                    : item.autoDetect?.categorySource === "rules"
+                      ? " · catalog match"
+                      : item.autoDetect?.model
+                        ? ` · ${item.autoDetect.model}`
+                        : ""}
+                  . Verify before approval.
+                </p>
+              ) : (
+                <p className="mt-1 text-[10.5px] text-acc">
+                  No existing category matched confidently. Choose one manually.
+                </p>
+              )}
             </div>
             <div>
               <label className={LBL}>Brand</label>
@@ -1262,6 +1791,9 @@ function ImportDetail({ item: initial, onBack }) {
                 className={INP + " w-full"}
               >
                 <option value="none">— none —</option>
+                <option value="create">
+                  Create new brand on approval
+                </option>
                 {(brands || []).map((b) => (
                   <option key={b._id} value={b._id}>
                     {b.name}
@@ -1270,8 +1802,26 @@ function ImportDetail({ item: initial, onBack }) {
               </select>
               {item.brandGuessSlug ? (
                 <p className="mt-1 text-[10.5px] text-dim">
-                  AI guess: {item.brandGuessSlug}
+                  Auto-detected brand: {item.extracted?.brandGuess || item.brandGuessSlug}
+                  {item.autoDetect?.brandConfidence > 0
+                    ? ` · ${Math.round(item.autoDetect.brandConfidence * 100)}%`
+                    : ""}
+                  {item.autoDetect?.brandSource === "source"
+                    ? " · not in catalog; review before creating or map to an existing brand"
+                    : ""}
                 </p>
+              ) : null}
+              {form.brandId === "create" ? (
+                <div className="mt-2">
+                  <label className={LBL}>Brand name to create</label>
+                  <input
+                    value={form.brandName}
+                    onChange={set("brandName")}
+                    className={INP + " w-full"}
+                    maxLength={80}
+                    placeholder="Enter the verified brand name"
+                  />
+                </div>
               ) : null}
             </div>
             <div className="grid grid-cols-2 gap-3">
@@ -2166,6 +2716,7 @@ function SettingsSection() {
   const toast = useToast();
   const [s, setS] = useState(null);
   const [runtime, setRuntime] = useState(null);
+  const [categories, setCategories] = useState([]);
   const [initialMasked, setInitialMasked] = useState([]); // Step 2 audit fix — which secrets carried the stored mask at load
   const [saving, setSaving] = useState(false);
   const load = useCallback(async () => {
@@ -2177,7 +2728,7 @@ function SettingsSection() {
       if (d.settings?.apiKey === "\u2022".repeat(8))
         masked.push("Gemini API key");
       if (d.settings?.openai?.apiKey === "\u2022".repeat(8))
-        masked.push("Local endpoint API key");
+        masked.push("OpenAI-compatible endpoint API key");
       setInitialMasked(masked);
     } catch (e) {
       toast(e.message, "err");
@@ -2186,6 +2737,11 @@ function SettingsSection() {
   useEffect(() => {
     load();
   }, [load]);
+  useEffect(() => {
+    AI.categories()
+      .then((result) => setCategories(result.items || result.categories || []))
+      .catch((error) => toast(error.message, "err"));
+  }, [toast]);
   if (!s) return <TableSkeleton rows={6} />;
 
   const set = (path, value) => {
@@ -2197,6 +2753,11 @@ function SettingsSection() {
       o[keys[keys.length - 1]] = value;
       return n;
     });
+  };
+  const useOpenRouterFree = () => {
+    set("provider", "openai");
+    set("openai.baseUrl", "https://openrouter.ai/api/v1");
+    set("openai.model", "openrouter/free");
   };
   const suggestionsText = (arr) => (arr || []).join("\n");
   const suggestionsArr = (t) =>
@@ -2210,7 +2771,7 @@ function SettingsSection() {
        secret on the backend; ask before destroying */
     for (const [label, v] of [
       ["Gemini API key", s.apiKey],
-      ["Local endpoint API key", s.openai?.apiKey],
+      ["OpenAI-compatible endpoint API key", s.openai?.apiKey],
     ]) {
       if (v === "" && initialMasked.includes(label)) {
         // eslint-disable-next-line no-alert
@@ -2257,7 +2818,7 @@ function SettingsSection() {
             : "not configured"}{" "}
           · images {runtime.cloudinary ? "Cloudinary" : "local disk"}.
           {runtime.effectiveProvider === "rules"
-            ? " — zero-cost grounded mode: the assistant answers ONLY from database facts (nothing can be invented). Add a Gemini API key below for natural conversational answers."
+            ? " — zero-cost grounded mode: the assistant answers ONLY from database facts (nothing can be invented). Configure Gemini or an OpenAI-compatible provider for AI-assisted import and conversational answers."
             : ""}
         </div>
       ) : null}
@@ -2266,6 +2827,28 @@ function SettingsSection() {
         <h3 className="font-head text-[13px] font-bold uppercase tracking-[.12em] text-txt">
           Provider
         </h3>
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-line bg-panel2 p-3">
+          <div className="min-w-[220px] flex-1">
+            <p className="text-[11.5px] font-bold text-txt">Free model option</p>
+            <p className="mt-0.5 text-[10.5px] text-dim">
+              OpenRouter&apos;s router selects only currently available free models.
+              Free-model limits and availability can change; product facts are
+              sent to the selected provider. Add the key in the endpoint-key
+              field, then save these settings.
+            </p>
+          </div>
+          <button type="button" className={GHOST_BTN} onClick={useOpenRouterFree}>
+            Use OpenRouter free-only preset
+          </button>
+          <a
+            className={GHOST_BTN}
+            href="https://openrouter.ai/keys"
+            target="_blank"
+            rel="noreferrer"
+          >
+            Create API key ↗
+          </a>
+        </div>
         <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
           <div>
             <label className={LBL}>Provider</label>
@@ -2276,9 +2859,7 @@ function SettingsSection() {
             >
               <option value="auto">auto (key → endpoint → rules)</option>
               <option value="gemini">Gemini API (Google AI Studio)</option>
-              <option value="openai">
-                Open-source endpoint (OpenAI-compatible)
-              </option>
+              <option value="openai">OpenAI-compatible endpoint (local / hosted)</option>
               <option value="rules">Grounded rules only (0 cost)</option>
             </select>
           </div>
@@ -2330,16 +2911,16 @@ function SettingsSection() {
             />
           </div>
           <div>
-            <label className={LBL}>Local model name</label>
+            <label className={LBL}>Compatible model ID</label>
             <input
               value={s.openai.model}
               onChange={(e) => set("openai.model", e.target.value)}
               className={INP + " w-full"}
-              placeholder="llama3.1 / qwen2.5:7b"
+              placeholder="openrouter/free / llama3.1"
             />
           </div>
           <div>
-            <label className={LBL}>Local endpoint API key (optional)</label>
+            <label className={LBL}>Endpoint API key (optional for local servers)</label>
             <input
               type="password"
               value={s.openai.apiKey}
@@ -2359,8 +2940,10 @@ function SettingsSection() {
         </div>
         <p className="text-[11px] text-dim">
           Keys are stored server-side only and always come back masked
-          (••••••••). The LLM never touches MongoDB directly — every fact flows
-          through the RAG layer with public-field projections and PII stripping.
+          (••••••••). Product import sends extracted product facts and allowed
+          catalog labels to the selected AI provider; avoid importing personal
+          or confidential data. Chat grounding still uses public-field
+          projections and PII stripping.
         </p>
       </div>
 
@@ -2477,11 +3060,23 @@ function SettingsSection() {
           </div>
           <div>
             <label className={LBL}>Default category fallback</label>
-            <input
+            <CategoryTreePicker
+              categories={categories}
               value={s.import.defaultCategory}
-              onChange={(e) => set("import.defaultCategory", e.target.value)}
-              className={INP + " w-full"}
-              placeholder="accessories"
+              onChange={(category) => set("import.defaultCategory", category)}
+              placeholder="— no default category —"
+              allowEmpty
+              emptyLabel="— no default category —"
+              extraOptions={
+                s.import.defaultCategory &&
+                !categories.some((category) => category.slug === s.import.defaultCategory)
+                  ? [{
+                      value: s.import.defaultCategory,
+                      label: `${s.import.defaultCategory} (saved value)`,
+                    }]
+                  : []
+              }
+              ariaLabel="Default category fallback"
             />
           </div>
           <div>

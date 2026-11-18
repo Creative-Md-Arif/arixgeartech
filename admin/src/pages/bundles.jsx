@@ -30,6 +30,15 @@ import {
   products,
 } from "../services/bundles.js";
 
+const toLocalDateTime = (value) => {
+  if (!value) return "";
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return "";
+  return new Date(date.getTime() - date.getTimezoneOffset() * 60000)
+    .toISOString()
+    .slice(0, 16);
+};
+
 function BundleForm({ b, prods, onDone }) {
   const toast = useToast();
   const { closeModal } = useModal();
@@ -37,8 +46,12 @@ function BundleForm({ b, prods, onDone }) {
   const [title, setTitle] = useState(b?.title || "");
   const [titleBn, setTitleBn] = useState(b?.titleBn || "");
   const [tagline, setTagline] = useState(b?.tagline || "");
+  const [taglineBn, setTaglineBn] = useState(b?.taglineBn || "");
   const [tag, setTag] = useState(b?.tag || "");
   const [bundlePrice, setBundlePrice] = useState(b?.bundlePrice ?? "");
+  const [startsAt, setStartsAt] = useState(() => toLocalDateTime(b?.window?.startsAt));
+  const [endsAt, setEndsAt] = useState(() => toLocalDateTime(b?.window?.endsAt));
+  const [sortOrder, setSortOrder] = useState(b?.sortOrder ?? 0);
   const [active, setActive] = useState(b ? b.active : true);
   const [items, setItems] = useState(() =>
     (b?.items || []).map((i) => ({ slug: i.slug, qty: i.qty || 1 })),
@@ -46,9 +59,16 @@ function BundleForm({ b, prods, onDone }) {
   const [busy, setBusy] = useState(false);
 
   const bySlug = useMemo(
-    () => Object.fromEntries((prods || []).map((p) => [p.slug, p])),
-    [prods],
+    () => {
+      const map = Object.fromEntries((prods || []).map((p) => [p.slug, p]));
+      (b?.items || []).forEach((item) => {
+        if (!map[item.slug]) map[item.slug] = { slug: item.slug, name: item.name, price: item.price, active: false };
+      });
+      return map;
+    },
+    [prods, b],
   );
+  const pickerProducts = useMemo(() => Object.values(bySlug).sort((a, b) => a.name.localeCompare(b.name)), [bySlug]);
   const total = useMemo(
     () =>
       items.reduce(
@@ -59,7 +79,14 @@ function BundleForm({ b, prods, onDone }) {
   );
   const priceNum = Number(bundlePrice) || 0;
   const valid =
-    title.trim() && items.length >= 2 && priceNum > 0 && priceNum < total;
+    title.trim() && title.trim().length <= 80 && titleBn.trim().length <= 80 &&
+    tagline.trim().length <= 160 && taglineBn.trim().length <= 160 && tag.trim().length <= 24 &&
+    items.length >= 2 && items.length <= 8 && items.every((i) => Number.isInteger(+i.qty) && +i.qty >= 1 && +i.qty <= 10) &&
+    Number.isInteger(+sortOrder) && +sortOrder >= 0 && +sortOrder <= 999 &&
+    (!startsAt || Number.isFinite(new Date(startsAt).getTime())) &&
+    (!endsAt || Number.isFinite(new Date(endsAt).getTime())) &&
+    (!startsAt || !endsAt || new Date(startsAt) <= new Date(endsAt)) &&
+    priceNum > 0 && priceNum < total;
 
   const toggleItem = (slug) => {
     setItems((list) =>
@@ -81,9 +108,15 @@ function BundleForm({ b, prods, onDone }) {
         title: title.trim(),
         titleBn: titleBn.trim(),
         tagline: tagline.trim(),
+        taglineBn: taglineBn.trim(),
         tag: tag.trim().slice(0, 24),
         bundlePrice: priceNum,
         active,
+        window: {
+          startsAt: startsAt ? new Date(startsAt).toISOString() : null,
+          endsAt: endsAt ? new Date(endsAt).toISOString() : null,
+        },
+        sortOrder: Number(sortOrder),
         items,
       };
       if (isNew) await create(body);
@@ -128,6 +161,10 @@ function BundleForm({ b, prods, onDone }) {
             placeholder="CPU + GPU + RAM — 1080p-ready."
           />
         </label>
+        <label className="block md:col-span-2">
+          <span className={LBL}>Tagline (বাংলা)</span>
+          <input value={taglineBn} onChange={(e) => setTaglineBn(e.target.value)} maxLength={160} placeholder="কম্বো বান্ডেলের সংক্ষিপ্ত বিবরণ" />
+        </label>
         <label className="block">
           <span className={LBL}>Corner chip</span>
           <input
@@ -148,6 +185,18 @@ function BundleForm({ b, prods, onDone }) {
             onChange={(e) => setBundlePrice(e.target.value)}
           />
         </label>
+        <label className="block">
+          <span className={LBL}>Starts at (optional)</span>
+          <input type="datetime-local" value={startsAt} onChange={(e) => setStartsAt(e.target.value)} />
+        </label>
+        <label className="block">
+          <span className={LBL}>Ends at (optional)</span>
+          <input type="datetime-local" value={endsAt} onChange={(e) => setEndsAt(e.target.value)} />
+        </label>
+        <label className="block">
+          <span className={LBL}>Sort order (0–999)</span>
+          <input type="number" min="0" max="999" step="1" value={sortOrder} onChange={(e) => setSortOrder(e.target.value)} />
+        </label>
       </div>
 
       <div className="mt-4">
@@ -159,7 +208,7 @@ function BundleForm({ b, prods, onDone }) {
           className="max-h-[220px] overflow-y-auto rounded-lg border border-line2 bg-panel2 p-2"
           data-testid="bundlePicker"
         >
-          {(prods || []).map((p) => {
+          {pickerProducts.map((p) => {
             const on = items.some((i) => i.slug === p.slug);
             return (
               <div
@@ -175,7 +224,7 @@ function BundleForm({ b, prods, onDone }) {
                   label={"include " + p.name}
                 />
                 <span className="min-w-0 flex-1 truncate text-[12.5px] text-txt">
-                  {p.name}
+                  {p.name}{p.active === false ? " (inactive)" : ""}
                 </span>
                 <span className="text-[11.5px] text-dim2">
                   {money(p.price)}
@@ -184,6 +233,7 @@ function BundleForm({ b, prods, onDone }) {
                   <select
                     className="w-[64px] text-[12px]"
                     value={items.find((i) => i.slug === p.slug)?.qty || 1}
+                    disabled={p.active === false}
                     onChange={(e) =>
                       setItems((l) =>
                         l.map((i) =>
@@ -194,7 +244,7 @@ function BundleForm({ b, prods, onDone }) {
                       )
                     }
                   >
-                    {[1, 2, 3, 4, 5].map((n) => (
+                    {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => (
                       <option key={n} value={n}>
                         ×{n}
                       </option>

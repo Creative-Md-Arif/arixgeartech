@@ -100,8 +100,9 @@ export function CartDrawer() {
 }
 
 function CartRow({ item, itemKey, setQty, openPDP }) {
-  if (item.bundle) return <div className="d-item mb-5 flex justify-between border-b border-line/60 pb-5"><div><p className="font-head font-semibold">{item.bundleTitle}</p><p className="text-xs text-dim">Combo bundle · server priced</p></div><div className="flex items-center gap-2"><button onClick={() => setQty(itemKey, -1)}>−</button>{item.qty}<button onClick={() => setQty(itemKey, 1)}>+</button><b>{money(item.price * item.qty)}</b></div></div>;
+  const { isBn } = useLang();
   const { BY_ID } = useCatalog();
+  if (item.bundle) return <div className="d-item mb-5 flex justify-between border-b border-line/60 pb-5"><div><p className="font-head font-semibold">{isBn && item.bundleTitleBn ? item.bundleTitleBn : item.bundleTitle}</p><p className="text-xs text-dim">Combo bundle · server priced</p></div><div className="flex items-center gap-2"><button onClick={() => setQty(itemKey, -1)}>−</button>{item.qty}<button onClick={() => setQty(itemKey, 1)}>+</button><b>{money(item.price * item.qty)}</b></div></div>;
   const p = BY_ID[item.id];
   if (!p) return null;
   return (

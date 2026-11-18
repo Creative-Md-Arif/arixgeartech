@@ -14,21 +14,23 @@ export default function BlogPage() {
   useSEO('blog', { title: 'The Journal — Training, Gear & Nutrition | ArixGear' });
   const [data, setData] = useState({ items: [], total: 0, page: 1, pages: 1 });
   const [state, setState] = useState('loading'); // loading | ok | empty
+  const [page, setPage] = useState(1);
+  const [reload, setReload] = useState(0);
 
   useEffect(() => {
     const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
     (async () => {
       try {
-        const d = await listPosts({ limit: 12, signal: ctrl ? ctrl.signal : undefined });
-        setData(d);
+        const d = await listPosts({ limit: 12, page, signal: ctrl ? ctrl.signal : undefined });
+        setData({ ...d, items: Array.isArray(d.items) ? d.items : [], page: d.page || page, pages: d.pages || 1 });
         setState(d.items && d.items.length ? 'ok' : 'empty');
       } catch (e) {
         if (String(e).includes('abort')) return;
-        setState('empty');
+        setState('error');
       }
     })();
     return () => { if (ctrl) ctrl.abort(); };
-  }, []);
+  }, [page, reload]);
 
   return (
     <section id="page-blog" className="page py-16 lg:py-24" data-testid="blogPage">
@@ -69,6 +71,14 @@ export default function BlogPage() {
           </div>
         )}
 
+        {state === 'error' && (
+          <div className="mt-10 border border-dashed border-line2 px-8 py-12 text-center text-muted" role="alert" data-testid="blogLoadError">
+            <h3 className="mb-2 font-disp text-[1.5rem] uppercase text-txt">Journal unavailable</h3>
+            <p>Posts could not be loaded. Check your connection and try again.</p>
+            <button type="button" onClick={() => setReload((n) => n + 1)} className="mt-5 border border-line2 px-5 py-2 font-cond text-[.78rem] font-semibold uppercase tracking-[.18em] text-acc">Try again</button>
+          </div>
+        )}
+
         {state === 'ok' && (
           <div className="mt-10 grid grid-cols-1 gap-[1.4rem] md:grid-cols-2 lg:grid-cols-3" data-testid="blogGrid">
             {data.items.map((p) => (
@@ -97,6 +107,14 @@ export default function BlogPage() {
               </Link>
             ))}
           </div>
+        )}
+
+        {state === 'ok' && data.pages > 1 && (
+          <nav className="mt-8 flex items-center justify-center gap-4" aria-label="Journal pages">
+            <button type="button" disabled={page <= 1} onClick={() => setPage((n) => Math.max(1, n - 1))} className="border border-line2 px-4 py-2 font-cond text-[.75rem] uppercase tracking-[.16em] text-muted disabled:opacity-40">Previous</button>
+            <span className="font-cond text-[.75rem] uppercase tracking-[.16em] text-dim">Page {data.page} of {data.pages}</span>
+            <button type="button" disabled={page >= data.pages} onClick={() => setPage((n) => Math.min(data.pages, n + 1))} className="border border-line2 px-4 py-2 font-cond text-[.75rem] uppercase tracking-[.16em] text-muted disabled:opacity-40">Next</button>
+          </nav>
         )}
       </div>
     </section>

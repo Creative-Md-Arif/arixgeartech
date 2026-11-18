@@ -44,8 +44,14 @@ function BrandForm({ b, onDone }) {
   const { closeModal } = useModal();
   const isNew = !b;
   const [name, setName] = useState(b?.name || '');
+  const [nameBn, setNameBn] = useState(b?.nameBn || '');
   const [slug, setSlug] = useState(b?.slug || '');
+  const [description, setDescription] = useState(b?.description || b?.desc || '');
+  const [descriptionBn, setDescriptionBn] = useState(b?.descriptionBn || b?.descBn || '');
+  const [website, setWebsite] = useState(b?.website || '');
   const [featured, setFeatured] = useState(!!b?.featured);
+  const [active, setActive] = useState(b?.active !== false);
+  const [order, setOrder] = useState(String(b?.order ?? 0));
   const [logo, setLogo] = useState(b?.logo || '');
   const [busy, setBusy] = useState(false);
 
@@ -64,7 +70,7 @@ function BrandForm({ b, onDone }) {
     if (!name.trim()) return toast('Brand name is required', 'err');
     setBusy(true);
     try {
-      const body = { name: name.trim(), slug: (slug.trim() || name.trim()).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, ''), featured, logo };
+      const body = { name: name.trim(), nameBn: nameBn.trim(), slug: slug.trim() || name.trim(), description: description.trim(), descriptionBn: descriptionBn.trim(), website: website.trim(), featured, active, order: Number(order) || 0, logo };
       if (isNew) await create(body); else await update(b._id, body);
       toast(isNew ? 'Brand created ✓' : 'Brand saved ✓', 'ok');
       closeModal(); onDone();
@@ -76,10 +82,21 @@ function BrandForm({ b, onDone }) {
       <h2 className="text-[17px]">{isNew ? '+ New Brand' : 'Edit Brand — ' + b.name}</h2>
       <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
         <label className="block"><span className={LBL}>Name</span>
-          <input data-testid="brandName" value={name} onChange={(e) => { setName(e.target.value); if (!b) setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')); }} placeholder="e.g. ASUS" /></label>
+          <input data-testid="brandName" value={name} onChange={(e) => { setName(e.target.value); if (!b) setSlug(e.target.value); }} placeholder="e.g. ASUS" /></label>
+        <label className="block"><span className={LBL}>বাংলা নাম</span>
+          <input value={nameBn} onChange={(e) => setNameBn(e.target.value)} placeholder="ঐচ্ছিক বাংলা নাম" /></label>
         <label className="block"><span className={LBL}>Slug</span>
-          <input value={slug} onChange={(e) => setSlug(e.target.value)} placeholder="asus" /></label>
+          <input value={slug} onChange={(e) => setSlug(e.target.value)} placeholder="asus বা বাংলা-স্লাগ" /></label>
+        <label className="block"><span className={LBL}>Website</span>
+          <input value={website} onChange={(e) => setWebsite(e.target.value)} placeholder="https://example.com" /></label>
+        <label className="block"><span className={LBL}>Display order</span>
+          <input type="number" value={order} onChange={(e) => setOrder(e.target.value)} /></label>
+        <label className="block md:col-span-2"><span className={LBL}>Description</span>
+          <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} /></label>
+        <label className="block md:col-span-2"><span className={LBL}>বাংলা বিবরণ</span>
+          <textarea value={descriptionBn} onChange={(e) => setDescriptionBn(e.target.value)} rows={3} /></label>
         <div className="flex items-center gap-3"><Toggle on={featured} onClick={() => setFeatured((v) => !v)} /><span className="text-[12.5px] text-dim">Featured on the storefront brand strip</span></div>
+        <div className="flex items-center gap-3"><Toggle on={active} onClick={() => setActive((v) => !v)} /><span className="text-[12.5px] text-dim">Visible in storefront</span></div>
         <div className="flex items-center gap-3">
           {logo ? <img src={logo} alt="" className="h-10 w-10 rounded-lg border border-line2 object-contain" /> : null}
           <button type="button" className={GHOST_BTN} onClick={pickLogo}>{logo ? 'Change logo' : 'Upload logo'}</button>
@@ -159,6 +176,7 @@ function BrandsPage() {
                 <div className="flex items-center gap-2">
                   <b className="truncate text-[14px] text-txt">{b.name}</b>
                   {b.featured ? <span className={CHIP + ' border-acc/50 text-acc'}>featured</span> : null}
+                  <span className={CHIP + (b.active === false ? ' border-red/40 bg-red/10 text-red' : ' border-green/40 bg-green/10 text-green')}>{b.active === false ? 'inactive' : 'active'}</span>
                 </div>
                 <div className="text-[11.5px] text-dim2">{b.slug} · {b.products} product{b.products === 1 ? '' : 's'}</div>
               </div>

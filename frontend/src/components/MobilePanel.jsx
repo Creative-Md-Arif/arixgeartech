@@ -23,9 +23,26 @@ export default function MobilePanel() {
   const [q, setQ] = useState('');
   const [openCat, setOpenCat] = useState(null);
   const categories = catTree
+    .filter((category) => category.showInNavbar !== false)
     .slice()
     .sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0) || String(a.name || '').localeCompare(String(b.name || '')))
     .slice(0, 12);
+  const renderCategoryLinks = (nodes, depth = 0) => (nodes || [])
+    .filter((category) => category.showInNavbar !== false)
+    .map((category) => (
+      <div key={category.slug}>
+        <Link
+          to={'/shop?cat=' + encodeURIComponent(category.slug)}
+          onClick={() => setMobileOpen(false)}
+          className="flex items-center justify-between border-b border-line/40 py-2.5 text-sm text-muted last:border-0 hover:text-acc"
+          style={{ paddingLeft: `${12 + depth * 16}px` }}
+        >
+          <span>{lang === 'bn' && category.nameBn ? category.nameBn : category.name}</span>
+          {category.productCount != null ? <span className="font-cond text-xs text-dim2">{category.productCount}</span> : null}
+        </Link>
+        {renderCategoryLinks(category.children, depth + 1)}
+      </div>
+    ));
 
   const search = () => {
     const s = q.trim().toLowerCase();
@@ -86,15 +103,9 @@ export default function MobilePanel() {
                   </button>
                 ) : null}
               </div>
-              {openCat === root.slug && root.children?.length ? (
+              {openCat === root.slug && root.children?.some((child) => child.showInNavbar !== false) ? (
                 <div className="bg-panel px-3 py-1">
-                  {root.children.map((sub) => (
-                    <Link key={sub.slug} to={'/shop?cat=' + encodeURIComponent(sub.slug)} onClick={() => setMobileOpen(false)}
-                      className="flex items-center justify-between border-b border-line/40 px-3 py-2.5 text-sm text-muted last:border-0 hover:text-acc">
-                      <span>{lang === 'bn' && sub.nameBn ? sub.nameBn : sub.name}</span>
-                      {sub.productCount != null ? <span className="font-cond text-xs text-dim2">{sub.productCount}</span> : null}
-                    </Link>
-                  ))}
+                  {renderCategoryLinks(root.children)}
                 </div>
               ) : null}
             </div>

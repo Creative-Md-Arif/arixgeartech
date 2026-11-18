@@ -16,20 +16,23 @@ export default function Page() {
   const { t, isBn } = useLang();
   const [rows, setRows] = useState(null); /* null loading · [] none */
   const [q, setQ] = useState('');
+  const [loadError, setLoadError] = useState(false);
+  const [reload, setReload] = useState(0);
 
   useEffect(() => {
     let dead = false;
+    setRows(null); setLoadError(false);
     listBrands()
       .then((d) => { if (!dead) setRows(d.brands || d.items || []); })
-      .catch(() => { if (!dead) setRows([]); });
+      .catch(() => { if (!dead) { setRows([]); setLoadError(true); } });
     return () => { dead = true; };
-  }, []);
+  }, [reload]);
 
   const norm = (s) => String(s || '').toLowerCase();
   const filtered = useMemo(() => {
     const needle = norm(q.trim());
     if (!needle) return rows || [];
-    return (rows || []).filter((b) => norm(b.name).includes(needle) || norm(b.desc).includes(needle));
+    return (rows || []).filter((b) => norm(b.name).includes(needle) || norm(b.nameBn).includes(needle) || norm(b.description || b.desc).includes(needle) || norm(b.descriptionBn || b.descBn).includes(needle));
   }, [rows, q]);
 
   const featured = filtered.filter((b) => b.featured);
@@ -45,9 +48,9 @@ export default function Page() {
           <img src={b.logo} alt={b.name + ' logo'} className="h-10 w-[120px] object-contain"
             onError={(e) => { e.currentTarget.style.display = 'none'; }} />
         ) : null}
-        <span className="font-disp text-[1.15rem] uppercase tracking-[.02em] text-txt group-hover:text-acc transition-colors">{b.name}</span>
+        <span className="font-disp text-[1.15rem] uppercase tracking-[.02em] text-txt group-hover:text-acc transition-colors">{isBn && b.nameBn ? b.nameBn : b.name}</span>
       </div>
-      {b.desc ? <p className="mt-3 line-clamp-2 text-[.82rem] leading-relaxed text-muted">{b.desc}</p> : null}
+      {(isBn && (b.descriptionBn || b.descBn) ? (b.descriptionBn || b.descBn) : (b.description || b.desc)) ? <p className="mt-3 line-clamp-2 text-[.82rem] leading-relaxed text-muted">{isBn && (b.descriptionBn || b.descBn) ? (b.descriptionBn || b.descBn) : (b.description || b.desc)}</p> : null}
       <div className="mt-4 flex items-center justify-between border-t border-line pt-3">
         <span className="font-cond text-[.75rem] uppercase tracking-[.2em] text-dim">
           {b.products != null ? <><b className="text-acc">{b.products}</b> {t('products')}</> : t('Official store')}
@@ -84,6 +87,12 @@ export default function Page() {
         {rows === null ? (
           <div className="mt-10 grid gap-[.7rem] sm:grid-cols-2 lg:grid-cols-3">
             {[0, 1, 2, 3, 4, 5].map((i) => <div key={i} className="h-40 animate-pulse border border-line bg-panel" />)}
+          </div>
+        ) : loadError ? (
+          <div className="mt-10 border border-dashed border-line2 px-6 py-12 text-center text-muted" role="alert" data-testid="brandLoadError">
+            <h3 className="mb-2 font-disp text-[1.6rem] uppercase text-txt">Brand directory unavailable</h3>
+            <p>Brands could not be loaded. Check your connection and try again.</p>
+            <button type="button" onClick={() => setReload((n) => n + 1)} className="mt-5 border border-line2 px-5 py-2 font-cond text-[.78rem] font-semibold uppercase tracking-[.18em] text-acc">Try again</button>
           </div>
         ) : filtered.length === 0 ? (
           <div className="mt-10 border border-dashed border-line2 px-6 py-16 text-center text-muted">

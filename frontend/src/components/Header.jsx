@@ -240,9 +240,28 @@ function CatNavbar() {
   const { t, isBn } = useLang();
   const [open, setOpen] = useState(null);
   const visibleCategories = catTree
+    .filter((category) => category.showInNavbar !== false)
     .slice()
     .sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0) || String(a.name || '').localeCompare(String(b.name || '')))
     .slice(0, 12);
+  const renderChildren = (nodes, depth = 0) => (nodes || [])
+    .filter((child) => child.showInNavbar !== false)
+    .map((child) => (
+      <div key={child.slug}>
+        <Link
+          to={"/shop?cat=" + encodeURIComponent(child.slug)}
+          className={'flex items-center justify-between gap-3 rounded px-2.5 py-2 transition-colors hover:bg-white/[.05] hover:text-acc ' + (depth ? 'text-[.8rem] text-muted' : 'text-[.88rem] font-semibold text-txt')}
+          style={{ paddingLeft: `${10 + depth * 14}px` }}
+          onClick={() => setOpen(null)}
+        >
+          <span>{isBn && child.nameBn ? child.nameBn : child.name}</span>
+          <span className="font-cond text-[.72rem] tracking-[.1em] text-dim">
+            {child.productCount != null ? child.productCount : ''}
+          </span>
+        </Link>
+        {renderChildren(child.children, depth + 1)}
+      </div>
+    ));
   return (
     <nav
       className="catnav hidden min-h-[86px] border-t border-line bg-panel/60 lg:block 2xl:min-h-[62px]"
@@ -258,7 +277,9 @@ function CatNavbar() {
             ))}
           </div>
         ) : null}
-        {catTreeReady ? visibleCategories.map((root, index) => (
+        {catTreeReady ? visibleCategories.map((root, index) => {
+          const visibleChildren = (root.children || []).filter((child) => child.showInNavbar !== false);
+          return (
           <div
             key={root.slug}
             className="catnav-item relative flex shrink-0 items-center self-stretch"
@@ -274,22 +295,10 @@ function CatNavbar() {
             >
               <span className="max-w-full whitespace-normal break-words text-center">{isBn && root.nameBn ? root.nameBn : root.name}</span>
             </Link>
-            {open === root.slug && root.children && root.children.length ? (
-              <div className={'catnav-drop absolute top-full z-50 w-[min(460px,calc(100vw-2rem))] border border-line bg-panel p-4 shadow-2xl shadow-black/60 ' + (index < 4 ? 'left-0' : index > 7 ? 'right-0' : 'left-1/2 -translate-x-1/2')}>
+            {open === root.slug && visibleChildren.length ? (
+              <div className={'catnav-drop absolute top-full z-50 max-h-[70vh] w-[min(460px,calc(100vw-2rem))] overflow-y-auto border border-line bg-panel p-4 shadow-2xl shadow-black/60 ' + (index < 4 ? 'left-0' : index > 7 ? 'right-0' : 'left-1/2 -translate-x-1/2')}>
                 <div className="grid grid-cols-2 gap-x-4 gap-y-1">
-                  {root.children.map((sub) => (
-                    <Link
-                      key={sub.slug}
-                      to={"/shop?cat=" + encodeURIComponent(sub.slug)}
-                      className="flex items-center justify-between gap-3 rounded px-2.5 py-2 text-[.88rem] font-semibold text-txt transition-colors hover:bg-white/[.05] hover:text-acc"
-                      onClick={() => setOpen(null)}
-                    >
-                      <span>{isBn && sub.nameBn ? sub.nameBn : sub.name}</span>
-                      <span className="font-cond text-[.72rem] tracking-[.1em] text-dim">
-                        {sub.productCount != null ? sub.productCount : ""} 
-                      </span>
-                    </Link>
-                  ))}
+                  {renderChildren(visibleChildren)}
                 </div>
                 <Link
                   to={"/shop?cat=" + encodeURIComponent(root.slug)}
@@ -309,7 +318,8 @@ function CatNavbar() {
               </div>
             ) : null}
           </div>
-        )) : null}
+          );
+        }) : null}
       </div>
     </nav>
   );

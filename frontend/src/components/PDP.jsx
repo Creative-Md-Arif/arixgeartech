@@ -1041,8 +1041,8 @@ export default function PDP() {
                 t("Sold Out — pick another size")
               ) : (
                 <>
-                  {t("Add to Cart —")}{" "}
-                  <span id="pdpAddPrice">{money(unit)}</span>
+                  {t("Add to Cart")}
+                
                 </>
               )}
             </button>

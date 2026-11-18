@@ -12,11 +12,12 @@ const fixUrl = (u) => (!u ? '' : (/^https?:/.test(u) ? u : (u.startsWith('/') ? 
 
 function PromoCard({ bn }) {
   const { t } = useLang();
-  const img = fixUrl((bn.image && bn.image.url) || bn.image || '');
+  const img = fixUrl((bn.poster && bn.poster.url) || (bn.image && bn.image.url) || bn.image || '');
+  const id = bn.id || bn._id;
   const link = safeHref(bn.link, '/shop');
   const onGo = (e) => {
     e.preventDefault();
-    if (bn._id) bannerClick(bn._id);
+    if (id) bannerClick(id);
     if (String(link).startsWith('#')) go(link);
     else window.location.href = link;
   };
@@ -55,11 +56,11 @@ export default function HeroPromos() {
     <>
       {/* Desktop promo column beside the featured hero card */}
       <aside className={'hero-promos-rail hidden min-w-0 grid-cols-1 gap-4 xl:grid xl:grid-rows-2' + (items.length === 1 ? ' single-promo' : '')} id="heroPromos" data-testid="heroPromos">
-        {items.slice(0, 2).map((bn, i) => <PromoCard key={bn._id || i} bn={bn} />)}
+        {items.slice(0, 2).map((bn, i) => <PromoCard key={bn.id || bn._id || i} bn={bn} />)}
       </aside>
       {/* below-xl — same promos as a grid right under the hero */}
       <div className="hero-promos-mobile grid grid-cols-2 gap-3 pb-2 pt-4 xl:hidden sm:gap-4">
-        {items.slice(0, 2).map((bn, i) => <PromoCard key={'m' + (bn._id || i)} bn={bn} />)}
+        {items.slice(0, 2).map((bn, i) => <PromoCard key={'m' + (bn.id || bn._id || i)} bn={bn} />)}
       </div>
     </>
   );

@@ -16,6 +16,7 @@ export default function PostPage() {
   const [post, setPost] = useState(null);
   const [related, setRelated] = useState([]);
   const [state, setState] = useState('loading'); // loading | ok | missing
+  const [reload, setReload] = useState(0);
 
   useEffect(() => {
     const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
@@ -26,11 +27,11 @@ export default function PostPage() {
         setPost(d.post); setRelated(d.related || []); setState('ok');
       } catch (e) {
         if (String(e).includes('abort')) return;
-        setState('missing');
+        setState(e.status === 404 ? 'missing' : 'error');
       }
     })();
     return () => { if (ctrl) ctrl.abort(); };
-  }, [slug]);
+  }, [slug, reload]);
 
   useSEO(state === 'ok' && post ? 'blog-post' : 'blog', {
     title: post ? (post.seoTitle || (isBn && post.titleBn ? post.titleBn : post.title)) : undefined,
@@ -59,6 +60,14 @@ export default function PostPage() {
             <h1 className="font-disp text-[2rem] uppercase text-txt">Post Not Found</h1>
             <p className="mt-2 text-muted">The piece moved or was never forged.</p>
             <Link to="/blog" className="mt-6 inline-block bg-acc px-6 py-3 font-head text-[.75rem] font-extrabold uppercase tracking-[.2em] text-black transition hover:bg-acc2">Back to the Journal</Link>
+          </div>
+        )}
+
+        {state === 'error' && (
+          <div className="border border-dashed border-line2 px-8 py-16 text-center" role="alert" data-testid="postLoadError">
+            <h1 className="font-disp text-[2rem] uppercase text-txt">Journal unavailable</h1>
+            <p className="mt-2 text-muted">This post could not be loaded. Check your connection and try again.</p>
+            <button type="button" onClick={() => setReload((n) => n + 1)} className="mt-6 border border-line2 px-6 py-3 font-head text-[.75rem] font-extrabold uppercase tracking-[.2em] text-acc">Try again</button>
           </div>
         )}
 

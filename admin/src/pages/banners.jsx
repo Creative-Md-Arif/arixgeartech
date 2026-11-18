@@ -53,6 +53,7 @@ function BannerForm({ b, onDone }) {
   const [videoPreview, setVideoPreview] = useState(b?.video?.url || null);
   const [posterFile, setPosterFile] = useState(null);
   const [posterPreview, setPosterPreview] = useState(b?.poster?.url || null);
+  const [posterRemoved, setPosterRemoved] = useState(false);
   const [busy, setBusy] = useState(false);
   const previewRef = useRef(preview);
   previewRef.current = preview;
@@ -85,6 +86,7 @@ function BannerForm({ b, onDone }) {
       } else if (kind === 'poster') {
         const u = posterRef.current; if (u && u.startsWith('blob:')) URL.revokeObjectURL(u);
         setPosterFile(f); setPosterPreview(URL.createObjectURL(f));
+        setPosterRemoved(false);
       } else {
         const u = previewRef.current; if (u && u.startsWith('blob:')) URL.revokeObjectURL(u);
         setFile(f); setPreview(URL.createObjectURL(f));
@@ -95,12 +97,13 @@ function BannerForm({ b, onDone }) {
   const clearPoster = () => {
     const u = posterRef.current; if (u && u.startsWith('blob:')) URL.revokeObjectURL(u);
     setPosterFile(null); setPosterPreview(null);
+    setPosterRemoved(true);
   };
 
   const save = async () => {
     if (!title.trim()) { acc.openOnly(['copy']); return toast('Title required', 'err'); }
-    if (mediaType === 'video' && isNew && !videoFile) { acc.openOnly(['media']); return toast('Upload a video for a video banner', 'err'); }
-    if (mediaType === 'image' && isNew && !file) { acc.openOnly(['media']); return toast('Banner image required', 'err'); }
+    if (mediaType === 'video' && !videoFile && !b?.video?.url) { acc.openOnly(['media']); return toast('Upload a video for a video banner', 'err'); }
+    if (mediaType === 'image' && !file && !b?.image?.url) { acc.openOnly(['media']); return toast('Banner image required', 'err'); }
     const fd = new FormData();
     fd.append('title', title.trim());
     fd.append('subtitle', subtitle);
@@ -114,10 +117,11 @@ function BannerForm({ b, onDone }) {
     fd.append('active', String(active));
     if (startsAt) fd.append('startsAt', new Date(startsAt).toISOString()); else fd.append('startsAt', '');
     if (endsAt) fd.append('endsAt', new Date(endsAt).toISOString()); else fd.append('endsAt', '');
-    if (file) fd.append('image', file);
     fd.append('mediaType', mediaType);
-    if (videoFile) fd.append('video', videoFile);
-    if (posterFile) fd.append('poster', posterFile);
+    if (mediaType === 'image' && file) fd.append('image', file);
+    if (mediaType === 'video' && videoFile) fd.append('video', videoFile);
+    if (mediaType === 'video' && posterFile) fd.append('poster', posterFile);
+    if (mediaType === 'video' && posterRemoved) fd.append('removePoster', 'true');
     setBusy(true);
     try {
       if (isNew) await createBanner(fd);

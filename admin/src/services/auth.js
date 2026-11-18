@@ -4,6 +4,9 @@ import { api } from './http.js';
 /* POST /api/auth/login — { email, password } → { token, user } */
 export const login = (email, password) => api('/auth/login', { method: 'POST', body: { email, password } });
 
+/* POST /api/auth/logout — revoke the browser's HttpOnly session cookie */
+export const logout = () => api('/auth/logout', { method: 'POST' });
+
 /* POST /api/auth/forgot-password — { email } → { message, delivery, resetUrl? } */
 export const forgotPassword = (email) => api('/auth/forgot-password', { method: 'POST', body: { email } });
 

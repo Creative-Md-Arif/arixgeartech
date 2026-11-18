@@ -73,6 +73,18 @@ router.get('/reports/sales', P('reports'), admin.salesReport);
 /* combo bundles (4.1) — module: catalog */
 const bundle = require('../controllers/bundleController');
 router.get('/bundles', P('catalog'), bundle.adminList);
+router.get('/bundles/products', P('catalog'), async (req, res, next) => {
+  try {
+    const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
+    const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 100, 1), 100);
+    const query = { active: true };
+    const [items, total] = await Promise.all([
+      Product.find(query).select('name nameBn slug price stock images').sort({ name: 1 }).skip((page - 1) * limit).limit(limit).lean(),
+      Product.countDocuments(query),
+    ]);
+    res.json({ items, total, page, limit, pages: Math.ceil(total / limit) || 1 });
+  } catch (e) { next(e); }
+});
 router.post('/bundles', P('catalog'), audit('create', 'bundle', { label: (req) => `Bundle ${req.body?.title || ''}` }), bundle.adminCreate);
 router.put('/bundles/:id', P('catalog'), audit('update', 'bundle'), bundle.adminUpdate);
 router.delete('/bundles/:id', P('catalog'), audit('delete', 'bundle'), bundle.adminDelete);
@@ -190,7 +202,7 @@ router.post('/products/import', P('products'), uploadCsv.single('csv'), audit('i
 router.post('/products/:id/duplicate', P('products'), audit('duplicate', 'product'), admin.duplicateProduct);
 
 /* categories (Admin → Catalog) — module: catalog */
-router.get('/categories', P('catalog'), async (_req, res, next) => {
+router.get('/categories', P('catalog', 'ai'), async (_req, res, next) => {
   try {
     const items = await require('../models/Category').find().sort({ order: 1 });
     res.json({ items });

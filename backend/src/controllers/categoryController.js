@@ -1,19 +1,34 @@
 const Category = require('../models/Category');
 const SpecTemplate = require('../models/SpecTemplate'); // Step 5 — reusable spec templates
-const { saveImage } = require('../services/storageService');
+const { saveImage, deleteImage } = require('../services/storageService');
 const cache = require('../services/cache'); // audit fix — category mutations never dropped the cached catalog/filters
 const specsUtil = require('../utils/specs'); // Step 5 — dynamic spec system
 const { auditSchemaMutation } = require('../services/specAudit'); // Step 6 — shared schema audit trail
 
-const slugify = (s) => String(s).toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+const slugify = (s) => String(s || '').toLowerCase().trim()
+  .replace(/[^a-z0-9\u0980-\u09FF]+/g, '-')
+  .replace(/(^-|-$)/g, '').slice(0, 120) || 'category';
+const escapeRe = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const validId = (v) => typeof v === 'string' && /^[a-f\d]{24}$/i.test(v);
+const parseOrder = (v) => {
+  const n = Number(v);
+  return Number.isInteger(n) && n >= 0 && n <= 999 ? n : null;
+};
 
 /* Phase 2 (v2 catalog) — Category is a TREE. `path` = ancestor slugs incl.
    self (root first). Every admin write recomputes it from the parent chain. */
 async function computePath(parentId, selfSlug) {
   const chain = [];
   let cur = parentId ? await Category.findById(parentId).lean() : null;
-  let guard = 0;
-  while (cur && guard++ < 10) { chain.unshift(cur.slug); cur = cur.parent ? await Category.findById(cur.parent).lean() : null; }
+  const seen = new Set();
+  while (cur) {
+    const id = String(cur._id);
+    if (seen.has(id)) throw Object.assign(new Error('Category tree contains a parent cycle'), { status: 400 });
+    seen.add(id);
+    if (chain.length >= 9) throw Object.assign(new Error('Category nesting cannot exceed 10 levels'), { status: 400 });
+    chain.unshift(cur.slug);
+    cur = cur.parent ? await Category.findById(cur.parent).lean() : null;
+  }
   if (selfSlug) chain.push(selfSlug);
   return chain;
 }
@@ -23,12 +38,52 @@ async function parentIsSafe(selfId, parentId) {
   if (!parentId) return true;
   if (String(selfId) === String(parentId)) return false;
   let cur = await Category.findById(parentId).lean();
-  let guard = 0;
-  while (cur && guard++ < 10) {
+  const seen = new Set();
+  while (cur) {
+    const id = String(cur._id);
+    if (seen.has(id)) return false;
+    seen.add(id);
     if (String(cur._id) === String(selfId)) return false; // self sits above the proposed parent
     cur = cur.parent ? await Category.findById(cur.parent).lean() : null;
   }
   return true;
+}
+
+/* Rebuild every descendant path and the product denormalization after a move
+   or slug edit. Category paths are also the branch filter/count contract. */
+async function refreshSubtrees(roots) {
+  if (!roots.length) return [];
+  const all = await Category.find().select('_id parent slug path').lean();
+  const children = new Map();
+  for (const node of all) {
+    const parentId = node.parent ? String(node.parent) : '';
+    if (!parentId) continue;
+    const list = children.get(parentId) || [];
+    list.push(node);
+    children.set(parentId, list);
+  }
+  const Product = require('../models/Product');
+  const queue = roots.map((node) => ({ ...node, path: [...(node.path || [node.slug])] }));
+  const seen = new Set();
+  const ordered = [];
+  while (queue.length) {
+    const node = queue.shift();
+    const id = String(node._id);
+    if (seen.has(id)) throw Object.assign(new Error('Category tree contains a cycle'), { status: 400 });
+    seen.add(id);
+    ordered.push(node);
+    for (const child of children.get(id) || []) {
+      const path = [...node.path, child.slug];
+      await Category.updateOne({ _id: child._id }, { $set: { path } });
+      queue.push({ ...child, path });
+    }
+  }
+  for (const node of ordered) {
+    await Product.updateMany({ category: node.slug }, {
+      $set: { categoryRef: node._id, categoryPath: node.path },
+    });
+  }
+  return ordered;
 }
 
 /* ============ ADMIN (mounted under /api/admin) ============ */
@@ -36,27 +91,38 @@ async function parentIsSafe(selfId, parentId) {
 // POST /api/admin/categories (multipart: image) — body.parent = Category _id (optional)
 exports.create = async (req, res, next) => {
   try {
-    const name = String((req.body || {}).name || '').trim();
+    const body = req.body || {};
+    const name = String(body.name || '').trim();
     if (!name) return res.status(400).json({ message: 'Category name is required' });
-    const slug = slugify(req.body.slug || name);
-    const dupe = await Category.findOne({ $or: [{ slug }, { name }] });
+    const slug = slugify(body.slug || name);
+    const dupe = await Category.findOne({ $or: [{ slug }, { name: { $regex: `^${escapeRe(name)}$`, $options: 'i' } }] });
     if (dupe) return res.status(409).json({ message: `Category "${dupe.name}" already exists` });
 
-    const parentId = req.body.parent || null;
+    const parentId = body.parent || null;
+    if (parentId && !validId(parentId)) return res.status(400).json({ message: 'Parent category id is invalid' });
     if (parentId && !(await Category.findById(parentId))) return res.status(400).json({ message: 'Parent category not found' });
+    const path = await computePath(parentId, slug);
+    const order = body.order === undefined || body.order === '' ? 0 : parseOrder(body.order);
+    if (order === null) return res.status(400).json({ message: 'Order must be a whole number between 0 and 999' });
     const img = req.file ? await saveImage(req.file, 'arixgear/categories') : null;
-    const doc = await Category.create({
-      name,
-      nameBn: String(req.body.nameBn || '').trim(), // Bengali label
-      slug,
-      parent: parentId || null,
-      icon: String(req.body.icon || '').trim(),
-      image: img ? img.url : String(req.body.image || ''),
-      order: Number(req.body.order) || 0,
-      active: req.body.active !== 'false' && req.body.active !== false,
-    });
-    doc.path = await computePath(doc.parent, doc.slug);
-    await doc.save();
+    let doc;
+    try {
+      doc = await Category.create({
+        name,
+        nameBn: String(body.nameBn || '').trim(), // Bengali label
+        slug,
+        parent: parentId || null,
+        path,
+        icon: String(body.icon || '').trim(),
+        image: img ? img.url : String(body.image || ''),
+        order,
+        active: body.active !== 'false' && body.active !== false,
+        showInNavbar: body.showInNavbar !== 'false' && body.showInNavbar !== false,
+      });
+    } catch (e) {
+      if (img && img.publicId) await deleteImage(img.publicId);
+      throw e;
+    }
     cache.bump(); // audit fix — tree changed → drop cached list/filters
     res.status(201).json({ category: doc });
   } catch (e) { next(e); }
@@ -66,43 +132,59 @@ exports.create = async (req, res, next) => {
 // the subtree's paths too (descendants denormalize the ancestor chain).
 exports.update = async (req, res, next) => {
   try {
+    if (!validId(req.params.id)) return res.status(400).json({ message: 'Invalid category id' });
     const c = await Category.findById(req.params.id);
     if (!c) return res.status(404).json({ message: 'Category not found' });
     const b = req.body || {};
-    if (b.name) c.name = String(b.name).trim();
+    const oldSlug = c.slug;
+    if (b.name !== undefined) {
+      const name = String(b.name || '').trim();
+      if (!name) return res.status(400).json({ message: 'Category name cannot be empty' });
+      const dupeName = await Category.findOne({ name: { $regex: `^${escapeRe(name)}$`, $options: 'i' }, _id: { $ne: c._id } });
+      if (dupeName) return res.status(409).json({ message: `Category "${dupeName.name}" already exists` });
+      c.name = name;
+    }
     if (b.nameBn !== undefined) c.nameBn = String(b.nameBn || '').trim();
-    if (b.slug) c.slug = slugify(b.slug);
+    if (b.slug !== undefined || b.name !== undefined) {
+      const slug = slugify(b.slug || c.name);
+      const dupeSlug = await Category.findOne({ slug, _id: { $ne: c._id } });
+      if (dupeSlug) return res.status(409).json({ message: `Category slug "${slug}" is already in use` });
+      c.slug = slug;
+    }
     if (b.icon !== undefined) c.icon = String(b.icon || '').trim();
     if (b.image !== undefined) c.image = b.image;
-    if (req.file) { const img = await saveImage(req.file, 'arixgear/categories'); c.image = img.url; }
-    if (b.order !== undefined) c.order = Number(b.order) || 0;
+    if (b.order !== undefined) {
+      const order = parseOrder(b.order);
+      if (order === null) return res.status(400).json({ message: 'Order must be a whole number between 0 and 999' });
+      c.order = order;
+    }
     if (b.active !== undefined) c.active = b.active === 'true' || b.active === true;
+    if (b.showInNavbar !== undefined) c.showInNavbar = b.showInNavbar === 'true' || b.showInNavbar === true;
 
     if (b.parent !== undefined) {
       const parentId = b.parent || null;
+      if (parentId && !validId(parentId)) return res.status(400).json({ message: 'Parent category id is invalid' });
       if (parentId && !(await Category.findById(parentId))) return res.status(400).json({ message: 'Parent category not found' });
       if (!(await parentIsSafe(c._id, parentId))) return res.status(400).json({ message: 'Invalid parent — a category cannot live inside itself' });
       c.parent = parentId || null;
     }
 
-    const oldSlug = c.slug;
-    const slugChanged = Boolean(b.slug) && c.isModified('slug');
-    await c.save();
     c.path = await computePath(c.parent, c.slug);
-    await c.save();
-    cache.bump(); // audit fix — tree changed → drop cached list/filters
-
-    /* slug changed → descendants' paths embed the old slug; rewrite the subtree
-       and move products off the dead slug string */
-    if (slugChanged) {
-      const kids = await Category.find({ parent: c._id });
-      for (const k of kids) {
-        k.path = await computePath(k.parent, k.slug);
-        await k.save();
-      }
-      const Product = require('../models/Product');
-      await Product.updateMany({ category: oldSlug }, { $set: { category: c.slug } });
+    let uploadedImage;
+    if (req.file) uploadedImage = await saveImage(req.file, 'arixgear/categories');
+    if (uploadedImage) c.image = uploadedImage.url;
+    try {
+      await c.save();
+    } catch (e) {
+      if (uploadedImage && uploadedImage.publicId) await deleteImage(uploadedImage.publicId);
+      throw e;
     }
+    if (oldSlug !== c.slug) {
+      const Product = require('../models/Product');
+      await Product.updateMany({ category: oldSlug }, { $set: { category: c.slug, categoryRef: c._id, categoryPath: c.path } });
+    }
+    await refreshSubtrees([{ _id: c._id, parent: c.parent, slug: c.slug, path: c.path }]);
+    cache.bump();
     res.json({ category: c });
   } catch (e) { next(e); }
 };
@@ -111,10 +193,27 @@ exports.update = async (req, res, next) => {
 // parent (subtree stays connected); products keep their category string.
 exports.remove = async (req, res, next) => {
   try {
+    if (!validId(req.params.id)) return res.status(400).json({ message: 'Invalid category id' });
     const c = await Category.findById(req.params.id);
     if (!c) return res.status(404).json({ message: 'Category not found' });
+    const children = await Category.find({ parent: c._id }).select('_id parent slug path').lean();
+    const parent = c.parent ? await Category.findById(c.parent).select('_id path').lean() : null;
+    const parentPath = parent ? (parent.path || []) : [];
     await Category.updateMany({ parent: c._id }, { $set: { parent: c.parent || null } });
     await c.deleteOne();
+    const Product = require('../models/Product');
+    await Product.updateMany({ category: c.slug }, {
+      $set: { categoryRef: parent ? parent._id : null, categoryPath: parentPath },
+    });
+    const roots = children.map((child) => ({
+      ...child,
+      parent: c.parent || null,
+      path: [...parentPath, child.slug],
+    }));
+    for (const root of roots) {
+      await Category.updateOne({ _id: root._id }, { $set: { parent: root.parent, path: root.path } });
+    }
+    await refreshSubtrees(roots);
     cache.bump(); // audit fix — tree changed → drop cached list/filters
     res.json({ ok: true });
   } catch (e) { next(e); }
@@ -330,8 +429,22 @@ exports.aliasSuggestions = async (req, res, next) => {
 // `children: []`), each node carrying its path for deep links.
 exports.tree = async (_req, res, next) => {
   try {
-    const all = await Category.find({ active: true }).sort({ order: 1, name: 1 }).lean();
-    const byId = Object.fromEntries(all.map((c) => [String(c._id), { ...c, children: [] }]));
+    const Product = require('../models/Product');
+    const [all, counts] = await Promise.all([
+      Category.find({ active: true }).sort({ order: 1, name: 1 }).lean(),
+      Product.aggregate([
+        { $match: { active: true } },
+        { $project: { paths: { $cond: [
+          { $gt: [{ $size: { $ifNull: ['$categoryPath', []] } }, 0] },
+          '$categoryPath',
+          ['$category'],
+        ] } } },
+        { $unwind: '$paths' },
+        { $group: { _id: '$paths', n: { $sum: 1 } } },
+      ]),
+    ]);
+    const countBySlug = Object.fromEntries(counts.map((r) => [r._id, r.n]));
+    const byId = Object.fromEntries(all.map((c) => [String(c._id), { ...c, productCount: countBySlug[c.slug] || 0, children: [] }]));
     const roots = [];
     for (const node of Object.values(byId)) {
       const pid = node.parent && byId[String(node.parent)] ? String(node.parent) : null;

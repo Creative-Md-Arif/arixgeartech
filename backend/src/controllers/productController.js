@@ -103,7 +103,12 @@ exports.list = async (req, res, next) => {
       /* descendants of a requested slug = every category whose path includes it */
       const ancestors = await Category.find({ path: { $in: requested } }).select('slug').lean();
       const leaves = new Set([...requested, ...ancestors.map((a) => a.slug)]);
-      q.category = { $in: [...leaves] };
+      // categoryPath covers moved/deleted category branches and legacy product
+      // labels whose category string no longer matches an active tree leaf.
+      q.$and = [...(q.$and || []), { $or: [
+        { category: { $in: [...leaves] } },
+        { categoryPath: { $in: requested } },
+      ] }];
     }
     /* Phase 2 — brand filter: comma-separated brand SLUGS resolved to ids */
     if (brand && String(brand).trim()) {
@@ -297,7 +302,10 @@ exports.filters = async (req, res, next) => {
       ]),
       /* Phase 2 — brand facet: active products grouped by brand, names resolved */
       Product.aggregate([
-        { $match: { active: true, brand: { $ne: null }, ...(catSlug ? { category: { $in: scopedCats } } : {}) } },
+        { $match: { active: true, brand: { $ne: null }, ...(catSlug ? { $or: [
+          { category: { $in: scopedCats } },
+          { categoryPath: { $in: requestedCats } },
+        ] } : {}) } },
         { $group: { _id: '$brand', n: { $sum: 1 } } },
         { $sort: { n: -1 } },
       ]),
@@ -336,7 +344,10 @@ exports.filters = async (req, res, next) => {
       }
       const schema = specsUtil.normalizeSpecGroups(merged);
       if (schema.length) {
-        const docs = await Product.find({ active: true, category: { $in: [...leaves] } })
+        const docs = await Product.find({ active: true, $or: [
+          { category: { $in: [...leaves] } },
+          { categoryPath: { $in: requestedCats } },
+        ] })
           .select('specValues specs').lean();
         out.specs = specsUtil.specFacetsFromDocs(schema, docs);
         out.specSchema = schema;

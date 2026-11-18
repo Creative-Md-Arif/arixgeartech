@@ -1,5 +1,6 @@
 /* ArixGear ADMIN — shared helpers (auth + formatting + pickers). All API calls live in src/services/* over services/http.js */
 import { navTo } from './nav.js';
+import { logout as serverLogout } from '../services/auth.js';
 
 export const dt = (s) => new Date(s).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
 export const day = (s) => new Date(s).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
@@ -19,7 +20,14 @@ export const auth = {
   set(t, u) { localStorage.setItem('forged_admin_token', t); localStorage.setItem('forged_admin_user', JSON.stringify(u)); },
   clear() { localStorage.removeItem('forged_admin_token'); localStorage.removeItem('forged_admin_user'); },
 };
-export function logout() { auth.clear(); navTo('/login'); }
+export async function logout() {
+  try {
+    await serverLogout();
+  } finally {
+    auth.clear();
+    navTo('/login');
+  }
+}
 /* no-throw: App.jsx's Guard already blocks unauthenticated renders — this just reroutes late logouts */
 export function requireAuth() {
   if (!auth.token) navTo('/login');

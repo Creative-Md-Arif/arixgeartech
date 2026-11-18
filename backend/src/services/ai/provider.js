@@ -17,6 +17,7 @@
 
 const AiSetting = require('../../models/AiSetting');
 const { GEMINI_DEFAULT_MODEL, geminiModelCandidates } = require('../../config/aiModels');
+const GEMINI_MODEL_FALLBACK_STATUSES = new Set([404, 429, 500, 502, 503, 504]);
 
 class ProviderUnavailable extends Error {
   constructor(msg) { super(msg); this.code = 'PROVIDER_UNAVAILABLE'; }
@@ -43,11 +44,17 @@ async function fetchTimeout(url, opts = {}, timeoutMs = 15000) {
   const t = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
     return await fetch(url, { ...opts, signal: ctrl.signal });
+  } catch (e) {
+    if (!ctrl.signal.aborted) throw e;
+    const timeoutError = new Error(`AI provider request timed out after ${timeoutMs}ms`);
+    timeoutError.name = 'TimeoutError';
+    timeoutError.code = 'AI_PROVIDER_TIMEOUT';
+    throw timeoutError;
   } finally { clearTimeout(t); }
 }
 
 /* ---------- Gemini (Google AI Studio) ---------- */
-async function geminiComplete(rt, { system, messages, json, temperature, maxTokens, timeoutMs }) {
+async function geminiComplete(rt, { system, messages, json, responseSchema, temperature, maxTokens, timeoutMs }) {
   const model = rt.model || GEMINI_DEFAULT_MODEL;
   /* audit fix — the API key previously rode in the query string (lands in
      proxy/access logs); the x-goog-api-key header is the documented way */
@@ -61,7 +68,10 @@ async function geminiComplete(rt, { system, messages, json, temperature, maxToke
     generationConfig: {
       temperature: temperature ?? rt.temperature ?? 0.4,
       maxOutputTokens: maxTokens ?? rt.maxOutputTokens ?? 700,
-      ...(json ? { responseMimeType: 'application/json' } : {}),
+      ...(json ? {
+        responseMimeType: 'application/json',
+        ...(responseSchema ? { responseSchema } : {}),
+      } : {}),
     },
   };
   if (system) body.system_instruction = { parts: [{ text: system }] };
@@ -136,16 +146,23 @@ async function openaiComplete(rt, { system, messages, json, temperature, maxToke
  * @throws ProviderUnavailable when no LLM is configured (caller falls back to rules composer)
  */
 async function geminiWithFallback(rt, p) {
+  const models = geminiModelCandidates(rt.model);
   let last;
-  for (const model of geminiModelCandidates(rt.model)) {
+  let timeoutFallbacks = 0;
+  for (let i = 0; i < models.length; i++) {
+    const model = models[i];
     try {
       const out = await geminiComplete({ ...rt, model }, p);
       if (model !== rt.model) console.warn(`[ai] Gemini model fallback succeeded: ${rt.model} -> ${model}`);
       return out;
     } catch (e) {
       last = e;
-      if (e.status !== 404) break;
-      console.warn(`[ai] Gemini model unavailable (${model}) -> trying fallback`);
+      const timedOut = e.code === 'AI_PROVIDER_TIMEOUT' || e.name === 'AbortError' || e.code === 'ABORT_ERR';
+      const retryableStatus = GEMINI_MODEL_FALLBACK_STATUSES.has(Number(e.status));
+      if ((!retryableStatus && (!timedOut || timeoutFallbacks >= 1)) || i === models.length - 1) break;
+      if (timedOut) timeoutFallbacks++;
+      const reason = timedOut ? 'timed out' : `returned HTTP ${e.status}`;
+      console.warn(`[ai] Gemini model ${model} ${reason} -> trying configured fallback model`);
     }
   }
   throw last || new Error('Gemini unavailable');

@@ -66,6 +66,8 @@ free-shipping threshold are all admin-editable, live, no deploy.
 
 Everything AI can also be configured at runtime in **Admin → Intelligence → AI Console → Settings** (DB values win; keys are stored server-side and always returned masked `••••••••`).
 
+The AI settings screen includes an optional OpenRouter free-model preset (`https://openrouter.ai/api/v1`, model `openrouter/free`). It requires an OpenRouter API key; the free router selects only free models, whose availability and rate limits can change. Product import sends extracted product facts and the allowed category/brand labels to the selected AI provider. Review that provider's data terms before enabling a hosted endpoint, and do not send personal or confidential data.
+
 ## 3. Build & run
 
 ```bash

@@ -72,11 +72,11 @@ const RESET_TTL_MIN = 15;
 const sha256 = (v) => crypto.createHash('sha256').update(v).digest('hex');
 
 /* opaque, single-use token — only its SHA-256 hash is stored */
-function issueResetToken(user, req) {
+async function issueResetToken(user, req) {
   const token = crypto.randomBytes(32).toString('hex');
   user.resetTokenHash = sha256(token);
   user.resetTokenExpires = new Date(Date.now() + RESET_TTL_MIN * 60 * 1000);
-  user.save({ validateBeforeSave: false });
+  await user.save({ validateBeforeSave: false });
   /* storefront gets /reset-password, admin console gets /admin/reset-password */
   const base = `${req.protocol}://${req.get('host')}`;
   const path = user.role === 'admin' || user.role === 'subadmin' ? '/admin/reset-password' : '/reset-password';
@@ -91,7 +91,7 @@ function issueResetToken(user, req) {
      development (set RESET_LINK_HIDE=true to suppress that).                  */
 exports.forgotPassword = async (req, res, next) => {
   try {
-    const { email } = req.body;
+    const { email } = req.body || {};
     if (!email || !/^\S+@\S+\.\S+$/.test(String(email))) {
       return res.status(400).json({ message: 'A valid email is required' });
     }
@@ -100,19 +100,23 @@ exports.forgotPassword = async (req, res, next) => {
       message: 'If an account exists for this email, a password reset link has been sent.',
       expiresIn: RESET_TTL_MIN,
     };
-    if (!user) return res.json({ ...generic, delivery: 'none' });
+    const hideLink = String(process.env.RESET_LINK_HIDE || '') === 'true'
+      || !!process.env.RESEND_API_KEY
+      || process.env.NODE_ENV === 'production';
+    if (!user) return res.json({ ...generic, ...(!hideLink ? { delivery: 'none' } : {}) });
 
-    const { resetUrl } = issueResetToken(user, req);
+    const { resetUrl } = await issueResetToken(user, req);
     const mail = await sendPasswordReset({
       to: user.email, name: user.name, resetUrl, minutes: RESET_TTL_MIN,
     });
     /* audit fix — production never mirrors the reset link into the response,
        even in dry-run mode (the link still lands in logs/emails.jsonl) */
-    const hideLink = String(process.env.RESET_LINK_HIDE || '') === 'true' || !!process.env.RESEND_API_KEY || process.env.NODE_ENV === 'production';
     res.json({
       ...generic,
-      delivery: mail.sent ? 'email' : 'dry-run',
-      ...(!hideLink ? { resetUrl } : {}),
+      ...(!hideLink ? {
+        delivery: mail.sent ? 'email' : mail.dryRun ? 'dry-run' : 'failed',
+        resetUrl,
+      } : {}),
     });
   } catch (e) { next(e); }
 };
@@ -136,7 +140,7 @@ exports.verifyResetToken = async (req, res, next) => {
 // POST /api/auth/reset-password — { token, password }
 exports.resetPassword = async (req, res, next) => {
   try {
-    const { token, password } = req.body;
+    const { token, password } = req.body || {};
     if (!token) return res.status(400).json({ message: 'Reset token missing' });
     if (!password || String(password).length < 6) {
       return res.status(400).json({ message: 'Password must be at least 6 characters' });
@@ -219,7 +223,8 @@ async function awardDeferredReferral(user) {
 // POST /api/auth/register — creates UNVERIFIED account + emails OTP (Task 51)
 exports.register = async (req, res, next) => {
   try {
-    const { name, email, phone, password } = req.body;
+    const body = req.body || {};
+    const { name, email, phone, password } = body;
     if (!name || !email || !password) return res.status(400).json({ message: 'Name, email and password are required' });
     const normPhone = phone !== undefined && phone !== '' && phone !== null ? normalizeBdPhone(phone) : null;
     if (phone && !normPhone) return res.status(400).json({ message: 'Invalid phone — use a BD mobile like 01712345678' });
@@ -236,7 +241,7 @@ exports.register = async (req, res, next) => {
     try {
       user.loyalty = user.loyalty || {};
       if (!user.loyalty.referralCode) user.loyalty.referralCode = referralCodeFor(user);
-      const refCode = String(req.body.ref || '').trim().toUpperCase();
+      const refCode = String(body.ref || '').trim().toUpperCase();
       if (refCode) {
         const referrer = await User.findOne({ 'loyalty.referralCode': refCode });
         if (referrer && String(referrer._id) !== String(user._id)) {
@@ -264,7 +269,7 @@ exports.register = async (req, res, next) => {
 // POST /api/auth/verify-email — { email, code } → activates account, awards referral, claims guest orders
 exports.verifyEmail = async (req, res, next) => {
   try {
-    const { email, code } = req.body;
+    const { email, code } = req.body || {};
     if (!email || !code) return res.status(400).json({ message: 'Email and verification code are required' });
     const user = await User.findOne({ email: String(email).toLowerCase().trim() })
       .select('+emailOtpHash +emailOtpExpires +emailOtpAttempts');
@@ -307,22 +312,34 @@ exports.verifyEmail = async (req, res, next) => {
 // POST /api/auth/resend-verification — { email } → always 200 (anti-enumeration)
 exports.resendVerification = async (req, res, next) => {
   try {
-    const { email } = req.body;
+    const { email } = req.body || {};
     if (!email || !/^\S+@\S+\.\S+$/.test(String(email))) {
       return res.status(400).json({ message: 'A valid email is required' });
     }
     const generic = { message: 'If an unverified account exists for this email, a new code has been sent.' };
     const user = await User.findOne({ email: String(email).toLowerCase().trim() })
       .select('+emailOtpSentAt +emailOtpExpires');
-    if (!user || user.emailVerified) return res.json({ ...generic, delivery: 'none' });
+    const hideDelivery = process.env.NODE_ENV === 'production';
+    if (!user || user.emailVerified) {
+      return res.json({ ...generic, ...(!hideDelivery ? { delivery: 'none' } : {}) });
+    }
 
     /* 60s cooldown — blocks mail-bombing without leaking account status */
     const cooling = user.emailOtpSentAt && (Date.now() - user.emailOtpSentAt.getTime()) < OTP_RESEND_COOLDOWN_S * 1000;
-    if (cooling) return res.json({ ...generic, delivery: 'cooldown', retryAfter: OTP_RESEND_COOLDOWN_S });
+    if (cooling) {
+      return res.json({
+        ...generic,
+        ...(!hideDelivery ? { delivery: 'cooldown', retryAfter: OTP_RESEND_COOLDOWN_S } : {}),
+      });
+    }
 
     const code = await issueEmailOtp(user);
     const mail = await sendEmailOtp({ to: user.email, name: user.name, code, minutes: OTP_TTL_MIN });
-    res.json({ ...generic, delivery: mail.sent ? 'email' : 'dry-run', ...(devOtpAllowed() ? { devOtp: code } : {}) });
+    res.json({
+      ...generic,
+      ...(!hideDelivery ? { delivery: mail.sent ? 'email' : mail.dryRun ? 'dry-run' : 'failed' } : {}),
+      ...(devOtpAllowed() ? { devOtp: code } : {}),
+    });
   } catch (e) { next(e); }
 };
 
@@ -330,15 +347,16 @@ exports.resendVerification = async (req, res, next) => {
 // (legacy { email, password } bodies keep working)
 exports.login = async (req, res, next) => {
   try {
-    const raw = String(req.body.identifier ?? req.body.email ?? '').trim();
-    const { password } = req.body;
+    const body = req.body || {};
+    const raw = String(body.identifier ?? body.email ?? '').trim();
+    const { password } = body;
     if (!raw || !password) return res.status(400).json({ message: 'Email/phone and password are required' });
 
     let user;
     if (looksLikePhone(raw)) {
       const norm = normalizeBdPhone(raw);
       if (!norm) return res.status(400).json({ message: 'Invalid phone — use a BD mobile like 01712345678' });
-      user = await User.findOne({ phone: norm }).select('+password');
+      user = await User.findOne({ phone: norm }).select('+password +emailOtpSentAt');
     } else {
       user = await User.findOne({ email: raw.toLowerCase() }).select('+password +emailOtpSentAt');
     }
@@ -414,7 +432,7 @@ exports.listAddresses = async (req, res) => {
 // POST /api/auth/addresses — add; first address becomes the default
 exports.addAddress = async (req, res, next) => {
   try {
-    const { label, line, city, division, postal, isDefault } = req.body;
+    const { label, line, city, division, postal, isDefault } = req.body || {};
     if (!line || !String(line).trim()) return res.status(400).json({ message: 'Address line is required' });
     const user = await User.findById(req.user._id);
     if (isDefault) user.addresses.forEach((a) => { a.isDefault = false; });
@@ -433,7 +451,7 @@ exports.updateAddress = async (req, res, next) => {
     const idx = parseInt(req.params.id, 10);
     const user = await User.findById(req.user._id);
     if (!Number.isInteger(idx) || idx < 0 || idx >= user.addresses.length) return res.status(404).json({ message: 'Address not found' });
-    const { label, line, city, division, postal, isDefault } = req.body;
+    const { label, line, city, division, postal, isDefault } = req.body || {};
     const a = user.addresses[idx];
     if (label !== undefined) a.label = label;
     if (line !== undefined) a.line = String(line).trim();
@@ -470,7 +488,7 @@ exports.deleteAddress = async (req, res, next) => {
 // PATCH /api/auth/profile — name + BD phone (Task 51: normalized + uniqueness-checked)
 exports.updateProfile = async (req, res, next) => {
   try {
-    const { name, phone } = req.body;
+    const { name, phone } = req.body || {};
     let normPhone;
     if (phone !== undefined && phone !== '') {
       normPhone = normalizeBdPhone(phone);
@@ -489,7 +507,7 @@ exports.updateProfile = async (req, res, next) => {
 // POST /api/auth/change-password — {current, next}
 exports.changePassword = async (req, res, next) => {
   try {
-    const { current, next: newPass } = req.body;
+    const { current, next: newPass } = req.body || {};
     const user = await User.findById(req.user._id).select('+password');
     if (!user || !(await user.matchPassword(String(current || '')))) {
       return res.status(401).json({ message: 'Current password is wrong' });

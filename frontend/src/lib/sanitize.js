@@ -48,7 +48,7 @@ export function safeHref(url, fallback) {
   const u = String(url || '').trim();
   if (!u) return fallback || '/';
   if (u.startsWith('#')) return u;                       /* in-page anchor */
-  if (u.startsWith('/')) return u;                       /* internal path */
+  if (u.startsWith('/') && !u.startsWith('//')) return u; /* internal path */
   if (/^https?:\/\//i.test(u)) return u;                 /* absolute web link */
   if (/^(mailto|tel):/i.test(u)) return u;               /* contact schemes */
   return fallback || '/';                                /* everything else — refuse */

@@ -32,7 +32,7 @@ exports.customers = async (_req, res, next) => {
 
 exports.customerTags = async (req, res, next) => {
   try {
-    const user = await User.findById(req.params.id);
+    const user = await User.findOne({ _id: req.params.id, role: 'customer' });
     if (!user) return res.status(404).json({ message: 'Customer not found' });
     const b = req.body || {};
     if (b.tags !== undefined) {
@@ -56,9 +56,9 @@ exports.customerTags = async (req, res, next) => {
 
 exports.resetCustomerPassword = async (req, res, next) => {
   try {
-    const user = await User.findById(req.params.id);
+    const user = await User.findOne({ _id: req.params.id, role: 'customer' });
     if (!user) return res.status(404).json({ message: 'Customer not found' });
-    const { resetUrl } = require('./authController')._issueResetToken(user, req);
+    const { resetUrl } = await require('./authController')._issueResetToken(user, req);
     res.json({
       resetUrl,
       expiresIn: 15,
@@ -80,7 +80,7 @@ exports.loyaltyList = async (req, res, next) => {
     const page = Math.max(1, Number(req.query.page) || 1);
     const limit = 20;
 
-    const filter = { role: { $ne: 'admin' } };
+    const filter = { role: 'customer' };
     if (q) {
       const rx = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
       filter.$or = [{ name: rx }, { email: rx }, { phone: rx }, { 'loyalty.referralCode': rx }];
@@ -88,7 +88,7 @@ exports.loyaltyList = async (req, res, next) => {
 
     const [total, agg, redeemed30, holders, users] = await Promise.all([
       User.countDocuments(filter),
-      User.aggregate([{ $match: { role: { $ne: 'admin' } } }, { $group: { _id: null, pts: { $sum: '$loyalty.points' }, n: { $sum: { $cond: [{ $gt: ['$loyalty.points', 0] }, 1, 0] } } } }]),
+      User.aggregate([{ $match: { role: 'customer' } }, { $group: { _id: null, pts: { $sum: '$loyalty.points' }, n: { $sum: { $cond: [{ $gt: ['$loyalty.points', 0] }, 1, 0] } } } }]),
       LoyaltyLog.aggregate([
         { $match: { type: 'redeem', createdAt: { $gte: new Date(Date.now() - 30 * 864e5) } } },
         { $group: { _id: null, pts: { $sum: { $abs: '$points' } } } },
@@ -128,7 +128,8 @@ exports.loyaltyList = async (req, res, next) => {
 
 exports.loyaltyDetail = async (req, res, next) => {
   try {
-    const u = await User.findById(req.params.userId).select('name email phone active loyalty createdAt').lean();
+    const u = await User.findOne({ _id: req.params.userId, role: 'customer' })
+      .select('name email phone active loyalty createdAt').lean();
     if (!u) return res.status(404).json({ message: 'Customer not found' });
     const logs = await LoyaltyLog.historyFor(u._id, 100);
     const orders = await Order.find({ user: u._id, 'totals.pointsRedeemed': { $gt: 0 } })
@@ -158,7 +159,7 @@ exports.loyaltyAdjust = async (req, res, next) => {
     if (!Number.isFinite(n) || n === 0) return res.status(400).json({ message: 'points must be a non-zero integer (+credit / −debit)' });
     if (Math.abs(n) > 100000) return res.status(400).json({ message: 'Single adjustment capped at ±100,000' });
     const note = String(req.body?.note || '').trim().slice(0, 200) || (n > 0 ? 'Admin credit' : 'Admin debit');
-    const u = await User.findById(req.params.userId);
+    const u = await User.findOne({ _id: req.params.userId, role: 'customer' });
     if (!u) return res.status(404).json({ message: 'Customer not found' });
     if (n < 0 && (u.loyalty?.points || 0) + n < 0) {
       return res.status(400).json({ message: `Balance is only ${u.loyalty?.points || 0} points — cannot debit ${Math.abs(n)}` });

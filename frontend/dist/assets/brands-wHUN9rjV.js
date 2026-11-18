@@ -1,1 +1,0 @@
-import{b as e}from"./index-CFOLednT.js";const n=(a={},t)=>{const s=a.featured?"?featured=true":"";return e("/brands"+s,{auth:!1,signal:t})},o=(a,t)=>e("/brands/"+encodeURIComponent(a),{auth:!1,signal:t});export{o as g,n as l};

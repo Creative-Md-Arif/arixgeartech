@@ -21,7 +21,7 @@ const bundleSchema = new mongoose.Schema(
     tagline: { type: String, default: '', trim: true, maxlength: 160 },
     taglineBn: { type: String, default: '', trim: true, maxlength: 160 },
     tag: { type: String, default: '', trim: true, maxlength: 24 }, // corner chip — BUILD KIT / WFH …
-    image: { type: String, default: '' },
+    image: { type: String, default: '', trim: true, maxlength: 600 },
 
     /* Components — product ref + frozen snapshot for history; qty per component. */
     items: {
@@ -31,10 +31,16 @@ const bundleSchema = new mongoose.Schema(
         slug: { type: String, required: true },
         name: { type: String, required: true },
         price: { type: Number, required: true, min: 0 }, // component price snapshot (refreshed on read)
-        qty: { type: Number, default: 1, min: 1, max: 10 },
+        qty: {
+          type: Number,
+          default: 1,
+          min: 1,
+          max: 10,
+          validate: { validator: Number.isInteger, message: 'Component quantity must be a whole number' },
+        },
       }],
       validate: {
-        validator: (v) => Array.isArray(v) && v.length >= 2 && v.length <= 8,
+        validator: (v) => Array.isArray(v) && v.length >= 2 && v.length <= 8 && new Set(v.map((item) => item && item.slug)).size === v.length,
         message: 'A bundle needs 2–8 distinct products',
       },
     },
@@ -47,7 +53,7 @@ const bundleSchema = new mongoose.Schema(
     },
 
     active: { type: Boolean, default: true, index: true },
-    sortOrder: { type: Number, default: 0 },
+    sortOrder: { type: Number, default: 0, min: 0, max: 999, validate: { validator: Number.isInteger, message: 'Sort order must be a whole number' } },
     sold: { type: Number, default: 0 }, // incremented per bundle unit purchased
   },
   { timestamps: true }
@@ -67,18 +73,26 @@ bundleSchema.methods.componentsTotal = function () {
   return Math.round((this.items || []).reduce((s, i) => s + (+i.price || 0) * (+i.qty || 1), 0) * 100) / 100;
 };
 
-/* allocate bundlePrice across components proportionally to their share of the
-   component total — the sum of allocations ALWAYS equals bundlePrice exactly
-   (largest-remainder rounding on the last line). Returns [{ index, unit }] */
+/* Allocate bundlePrice across component line totals, proportionally to their
+   share of the component total. Largest-remainder cent allocation guarantees
+   the sum exactly equals bundlePrice. `unit` is the amount for that component
+   including its configured quantity. Returns [{ index, unit }]. */
 bundleSchema.methods.allocate = function () {
-  const total = this.componentsTotal();
   const bp = +this.bundlePrice || 0;
-  const lines = (this.items || []).map((i, index) => ({ index, share: (total > 0 ? ((+i.price || 0) * (+i.qty || 1)) / total : 0) }));
-  const raw = lines.map((l) => l.share * bp);
-  const units = raw.map((v) => Math.floor(v * 100) / 100);
-  let diff = Math.round((bp - units.reduce((s, v) => s + v, 0)) * 100) / 100;
-  if (units.length) units[units.length - 1] = Math.round((units[units.length - 1] + diff) * 100) / 100;
-  return units.map((unit, i) => ({ index: i, unit: Math.max(unit, 0) }));
+  const items = this.items || [];
+  const bundleCents = Math.max(0, Math.round(bp * 100));
+  const weights = items.map((item) => Math.max(0, (+item.price || 0) * (+item.qty || 1)));
+  const totalWeight = weights.reduce((sum, weight) => sum + weight, 0);
+  const centsByItem = weights.map((weight) => totalWeight > 0 ? (weight / totalWeight) * bundleCents : 0);
+  const allocated = centsByItem.map(Math.floor);
+  let remaining = bundleCents - allocated.reduce((sum, cents) => sum + cents, 0);
+  const byRemainder = centsByItem.map((cents, index) => ({ index, remainder: cents - allocated[index] }))
+    .sort((a, b) => b.remainder - a.remainder || a.index - b.index);
+  for (let i = 0; remaining > 0 && byRemainder.length; i = (i + 1) % byRemainder.length) {
+    allocated[byRemainder[i].index] += 1;
+    remaining -= 1;
+  }
+  return allocated.map((cents, index) => ({ index, unit: cents / 100 }));
 };
 
 /* public projection — component cards are joined by the controller */

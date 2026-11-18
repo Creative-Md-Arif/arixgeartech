@@ -24,49 +24,82 @@ function imageTooBig(file) { return file && file.size > 5 * 1024 * 1024; }
    `prev` = the existing banner doc (for update — old refs get snapshotted for release). */
 async function buildMedia(req, prev) {
   const files = req.files || {};
+  const body = req.body || {};
   const imgF = (files.image || [])[0];
   const vidF = (files.video || [])[0];
   const posF = (files.poster || [])[0];
-  const bodyType = String(req.body.mediaType || '').toLowerCase();
-  const mediaType = bodyType === 'video' ? 'video' : bodyType === 'image' ? 'image' : (prev ? (prev.mediaType || 'image') : 'image');
+  const bodyType = String(body.mediaType || '').toLowerCase();
+  if (bodyType && bodyType !== 'image' && bodyType !== 'video') {
+    return { error: 'mediaType must be image or video' };
+  }
+  const mediaType = bodyType || (vidF ? 'video' : imgF ? 'image' : (prev ? (prev.mediaType || 'image') : 'image'));
+  const mediaTypeChanged = !!prev && (prev.mediaType || 'image') !== mediaType;
   const olds = [];
   let image, video, poster;
 
   if (imgF) {
     if (sniffKind(imgF.buffer) !== 'image') return { error: 'That image file is not a real JPG/PNG/WEBP' };
     if (imageTooBig(imgF)) return { error: 'Images must be 5MB or smaller' };
-    image = await saveImage(imgF, 'forged/banners', 'image');
-    if (prev && prev.image && prev.image.publicId && !(prev.mediaType !== 'image' && image && false)) olds.push({ kind: 'image', ref: { publicId: prev.image.publicId } });
   }
   if (vidF) {
+    if (mediaType !== 'video') return { error: 'A video upload requires video media type' };
     if (sniffKind(vidF.buffer) !== 'video') return { error: 'That video file is not a real MP4/WEBM/MOV' };
-    video = await saveImage(vidF, 'forged/banners', 'video');
-    if (prev && prev.video && prev.video.publicId) olds.push({ kind: 'video', ref: { publicId: prev.video.publicId } });
   }
   if (posF) {
+    if (mediaType !== 'video') return { error: 'A poster can only be used with a video banner' };
     if (sniffKind(posF.buffer) !== 'image') return { error: 'That poster file is not a real JPG/PNG/WEBP' };
     if (imageTooBig(posF)) return { error: 'The poster must be 5MB or smaller' };
-    poster = await saveImage(posF, 'forged/banners', 'image');
-    if (prev && prev.poster && prev.poster.publicId) olds.push({ kind: 'poster', ref: { publicId: prev.poster.publicId } });
   }
 
-  /* type switches orphan the previous media — release it (Task 38):
-     image→video leaves the old image unused; video→image leaves the clip unused */
-  if (mediaType === 'video' && prev && prev.image && prev.image.publicId) {
-    olds.push({ kind: 'image', ref: { publicId: prev.image.publicId } });
-  }
-  if (mediaType === 'image' && prev && prev.video && prev.video.publicId) {
-    olds.push({ kind: 'video', ref: { publicId: prev.video.publicId } });
-  }
-
-  /* sanity per mediaType */
-  if (mediaType === 'image' && !image && !(prev && prev.image && prev.image.url)) {
+  if (mediaType === 'image' && !imgF && !(prev && prev.image && prev.image.url)) {
     return { error: 'Banner image is required' };
   }
-  if (mediaType === 'video' && !video && !(prev && prev.video && prev.video.url)) {
+  if (mediaType === 'video' && !vidF && !(prev && prev.video && prev.video.url)) {
     return { error: 'A video file is required for a video banner' };
   }
-  return { mediaType, image, video, poster, olds };
+  const removePoster = !posF && (
+    body.removePoster === true
+    || body.removePoster === 'true'
+    || (mediaType === 'image' && prev && prev.mediaType === 'video')
+  );
+  const uploaded = [];
+  try {
+    if (imgF) {
+      image = await saveImage(imgF, 'forged/banners', 'image');
+      uploaded.push(image);
+      if (prev && prev.image && prev.image.publicId) olds.push({ kind: 'image', ref: { publicId: prev.image.publicId } });
+    }
+    if (vidF) {
+      video = await saveImage(vidF, 'forged/banners', 'video');
+      uploaded.push(video);
+      if (prev && prev.video && prev.video.publicId) olds.push({ kind: 'video', ref: { publicId: prev.video.publicId } });
+    }
+    if (posF) {
+      poster = await saveImage(posF, 'forged/banners', 'image');
+      uploaded.push(poster);
+      if (prev && prev.poster && prev.poster.publicId) olds.push({ kind: 'poster', ref: { publicId: prev.poster.publicId } });
+    } else if (removePoster) {
+      poster = { url: '', publicId: null };
+      if (prev && prev.poster && prev.poster.publicId) olds.push({ kind: 'poster', ref: { publicId: prev.poster.publicId } });
+    }
+
+    /* Release the previous type's asset only on a real type switch. */
+    if (mediaTypeChanged && mediaType === 'video') {
+      if (prev.image && prev.image.publicId) olds.push({ kind: 'image', ref: { publicId: prev.image.publicId } });
+      if (!imgF) image = { url: '', publicId: null };
+    }
+    if (mediaTypeChanged && mediaType === 'image') {
+      if (prev.video && prev.video.publicId) olds.push({ kind: 'video', ref: { publicId: prev.video.publicId } });
+      video = { url: '', publicId: null };
+    }
+    if (removePoster && prev && prev.poster && prev.poster.publicId) {
+      olds.push({ kind: 'poster', ref: { publicId: prev.poster.publicId } });
+    }
+    return { mediaType, image, video, poster, olds, uploaded };
+  } catch (e) {
+    await Promise.all(uploaded.map((file) => file && file.publicId ? deleteImage(file.publicId) : Promise.resolve()));
+    throw e;
+  }
 }
 const cache = require('../services/cache');
 
@@ -85,9 +118,10 @@ function safeLink(v) {
   const s = String(v == null ? '' : v).trim();
   if (!s) return 'shop.html';
   if (/^(javascript|data|vbscript|file)\s*:/i.test(s)) return null;
+  if (s.startsWith('//')) return null;
   if (/^https?:\/\//i.test(s)) return s;
   if (/^mailto:[^\s@]+@[^\s@]+\.[^\s@]+$/i.test(s)) return s;
-  if (s.startsWith('/')) return s;
+  if (s.startsWith('/') && !s.startsWith('//')) return s;
   if (!s.includes(':')) return s; // relative like "shop.html" or "collections/whey"
   return null;
 }
@@ -163,6 +197,25 @@ function bumpCache() {
   cache.bump(); // shared namespace with the product catalog — 15s TTL self-heals anyway
 }
 
+async function releaseUnusedMedia(refs) {
+  const fields = { image: 'image.publicId', video: 'video.publicId', poster: 'poster.publicId' };
+  const seen = new Set();
+  for (const item of refs) {
+    const publicId = item && item.ref && item.ref.publicId;
+    const field = item && fields[item.kind];
+    const key = publicId && field ? field + ':' + publicId : '';
+    if (!publicId || !field || seen.has(key)) continue;
+    seen.add(key);
+    const remaining = await Banner.countDocuments({ [field]: publicId });
+    if (remaining === 0) await deleteImage(publicId);
+  }
+}
+
+async function discardUploadedMedia(media) {
+  const files = media && Array.isArray(media.uploaded) ? media.uploaded : [];
+  await Promise.all(files.map((file) => file && file.publicId ? deleteImage(file.publicId) : Promise.resolve()));
+}
+
 /* ============ PUBLIC ============ */
 
 // GET /api/banners?position=hero (public — active + inside schedule window).
@@ -170,7 +223,7 @@ function bumpCache() {
 // bump the cache so edits still appear instantly.
 exports.publicList = async (req, res, next) => {
   try {
-    const pos = String(req.query.position || '');
+    const pos = String((req.query || {}).position || '');
     const key = 'banners:' + (pos || 'all');
     const hit = cache.get(key);
     if (hit) return res.json(hit);
@@ -212,7 +265,8 @@ exports.click = async (req, res, next) => {
   try {
     const oid = oidOf(req.params.id);
     if (!oid) return res.status(400).json({ ok: false });
-    await Banner.updateOne({ _id: oid, active: true }, { $inc: { clicks: 1 } });
+    const result = await Banner.updateOne({ _id: oid, active: true }, { $inc: { clicks: 1 } });
+    if (!(result.matchedCount || result.n)) return res.status(404).json({ ok: false });
     res.json({ ok: true });
   } catch (e) { next(e); }
 };
@@ -244,18 +298,25 @@ exports.adminList = async (_req, res, next) => {
 // POST /api/admin/banners (multipart: image + fields)
 exports.create = async (req, res, next) => {
   try {
-    const v = bannerFields(req.body || {});
+    const body = req.body || {};
+    const v = bannerFields(body);
     if (v.error) return res.status(400).json({ message: v.error });
     const m = await buildMedia(req, null);
     if (m.error) return res.status(400).json({ message: m.error });
-    const banner = await Banner.create({
-      ...v.fields,
-      mediaType: m.mediaType,
-      active: (req.body.active === undefined ? true : req.body.active === 'true' || req.body.active === true),
-      image: m.image || { url: '', publicId: null },
-      video: m.video || { url: '', publicId: null },
-      poster: m.poster || { url: '', publicId: null },
-    });
+    let banner;
+    try {
+      banner = await Banner.create({
+        ...v.fields,
+        mediaType: m.mediaType,
+        active: (body.active === undefined ? true : body.active === 'true' || body.active === true),
+        image: m.image || { url: '', publicId: null },
+        video: m.video || { url: '', publicId: null },
+        poster: m.poster || { url: '', publicId: null },
+      });
+    } catch (e) {
+      await discardUploadedMedia(m);
+      throw e;
+    }
     bumpCache();
     res.status(201).json({ banner });
   } catch (e) { next(e); }
@@ -264,9 +325,12 @@ exports.create = async (req, res, next) => {
 // PUT /api/admin/banners/:id (multipart optional new image)
 exports.update = async (req, res, next) => {
   try {
-    const banner = await Banner.findById(req.params.id);
+    const oid = oidOf(req.params.id);
+    if (!oid) return res.status(400).json({ message: 'Invalid banner id' });
+    const body = req.body || {};
+    const banner = await Banner.findById(oid);
     if (!banner) return res.status(404).json({ message: 'Banner not found' });
-    const v = bannerFields(req.body || {}, banner.toObject());
+    const v = bannerFields(body, banner.toObject());
     if (v.error) return res.status(400).json({ message: v.error });
 
     /* Task 38 — media replacement for image / video / poster.
@@ -282,21 +346,15 @@ exports.update = async (req, res, next) => {
     if (m.poster) banner.poster = m.poster;
     Object.assign(banner, v.fields);
     if (m.mediaType) banner.mediaType = m.mediaType;
-    if (req.body.active !== undefined) banner.active = req.body.active === 'true' || req.body.active === true;
-    if (req.body.mediaType !== undefined && !m.image && !m.video && !m.poster) {
-      /* type switch without new media: keep stored assets, just flip the type */
-    }
-    await banner.save();
-
-    /* release AFTER the save — old refs were plain snapshots, never aliases */
-    const seen = new Set();
-    for (const o of olds) {
-      if (o.ref && o.ref.publicId && !seen.has(o.ref.publicId)) {
-        seen.add(o.ref.publicId);
-        deleteImage(o.ref.publicId).catch(() => {});
-      }
+    if (body.active !== undefined) banner.active = body.active === 'true' || body.active === true;
+    try {
+      await banner.save();
+    } catch (e) {
+      await discardUploadedMedia(m);
+      throw e;
     }
     bumpCache();
+    await releaseUnusedMedia(olds);
     res.json({ banner });
   } catch (e) {
     next(e);
@@ -311,7 +369,7 @@ exports.reorder = async (req, res, next) => {
       return res.status(400).json({ message: 'items must be an array of 1-60 {id, order}' });
     }
     for (const it of items) {
-      if (!oidOf(it.id) || !Number.isInteger(Number(it.order)) || Number(it.order) < 0 || Number(it.order) > 999) {
+      if (!it || typeof it !== 'object' || !oidOf(it.id) || !Number.isInteger(Number(it.order)) || Number(it.order) < 0 || Number(it.order) > 999) {
         return res.status(400).json({ message: 'each item needs a valid id and order (0-999)' });
       }
     }
@@ -328,16 +386,21 @@ exports.reorder = async (req, res, next) => {
 // POST /api/admin/banners/:id/duplicate — clone fields, share the image, start hidden
 exports.duplicate = async (req, res, next) => {
   try {
-    const src = await Banner.findById(req.params.id);
+    const oid = oidOf(req.params.id);
+    if (!oid) return res.status(400).json({ message: 'Invalid banner id' });
+    const src = await Banner.findById(oid);
     if (!src) return res.status(404).json({ message: 'Banner not found' });
     const maxOrder = await Banner.findOne({ position: src.position }).sort({ order: -1 }).select('order');
     const dup = await Banner.create({
       title: (src.title + ' (copy)').slice(0, 80),
       subtitle: src.subtitle,
       ctaText: src.ctaText,
+      titleBn: src.titleBn,
+      subtitleBn: src.subtitleBn,
+      ctaTextBn: src.ctaTextBn,
       link: src.link,
       position: src.position,
-      order: ((maxOrder && maxOrder.order) || 0) + 1,
+      order: Math.min(999, ((maxOrder && maxOrder.order) || 0) + 1),
       active: false, // safety — go live via the toggle after editing
       startsAt: null,
       endsAt: null,
@@ -347,6 +410,7 @@ exports.duplicate = async (req, res, next) => {
       poster: src.poster,
       clicks: 0,
     });
+    bumpCache();
     res.status(201).json({ banner: dup });
   } catch (e) { next(e); }
 };
@@ -383,26 +447,18 @@ exports.analytics = async (_req, res, next) => {
 // no OTHER banner shares the same publicId (duplicate() shares references).
 exports.remove = async (req, res, next) => {
   try {
-    const banner = await Banner.findById(req.params.id);
+    const oid = oidOf(req.params.id);
+    if (!oid) return res.status(400).json({ message: 'Invalid banner id' });
+    const banner = await Banner.findById(oid);
     if (!banner) return res.status(404).json({ message: 'Banner not found' });
-    const publicId = banner.image && banner.image.publicId;
-    const videoId = banner.video && banner.video.publicId;
-    const posterId = banner.poster && banner.poster.publicId;
+    const refs = [
+      { kind: 'image', ref: banner.image },
+      { kind: 'video', ref: banner.video },
+      { kind: 'poster', ref: banner.poster },
+    ];
     await banner.deleteOne();
-    if (publicId) {
-      const shared = await Banner.countDocuments({ 'image.publicId': publicId });
-      if (shared === 0) deleteImage(publicId).catch(() => {});
-    }
-    /* Task 38 — release video + poster files too (same refcount guard) */
-    if (videoId) {
-      const sharedV = await Banner.countDocuments({ 'video.publicId': videoId });
-      if (sharedV === 0) deleteImage(videoId).catch(() => {});
-    }
-    if (posterId) {
-      const sharedP = await Banner.countDocuments({ 'poster.publicId': posterId });
-      if (sharedP === 0) deleteImage(posterId).catch(() => {});
-    }
     bumpCache();
+    await releaseUnusedMedia(refs);
     res.json({ message: 'Banner deleted' });
   } catch (e) { next(e); }
 };

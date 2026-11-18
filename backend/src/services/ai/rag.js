@@ -216,12 +216,14 @@ async function liveBundles(limit = 3) {
   const rows = await ComboBundle.find({ active: true })
     .sort({ createdAt: -1 }).limit(limit)
     .select('title titleBn slug bundlePrice window items')
+    .populate('items.product', 'active stock price')
     .lean();
   return rows.filter((b) => {
     const w = b.window || {};
     if (w.startsAt && now < new Date(w.startsAt)) return false;
     if (w.endsAt && now > new Date(w.endsAt)) return false;
-    return true;
+    const total = (b.items || []).reduce((sum, item) => sum + (Number(item.product?.price) || 0) * (+item.qty || 1), 0);
+    return total > +b.bundlePrice && (b.items || []).every((item) => item.product && item.product.active !== false && Number(item.product.stock) >= (+item.qty || 1));
   }).map((b) => ({ ...b, price: b.bundlePrice }));
 }
 

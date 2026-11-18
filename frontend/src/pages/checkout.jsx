@@ -36,7 +36,7 @@ export default function Page() {
   const { BY_ID } = useCatalog();
   const { payInfo, divCharge, FREE_SHIP } = useContent();
   const { toast } = useUI();
-  const { t } = useLang();
+  const { t, isBn } = useLang();
 
   const [payMethod, setPayMethod] = useState('bkash');
   const [payShot, setPayShot] = useState(null);
@@ -103,10 +103,10 @@ export default function Page() {
     const list = Object.keys(cart).map((k) => {
       const it = cart[k];
       const p = BY_ID[it.id] || {};
-      return { key: k, name: it.bundle ? it.bundleTitle : (p.name || it.id), img: p.img || '', price: +it.price || p.price || 0, size: it.size, color: it.color, qty: it.qty };
+      return { key: k, name: it.bundle ? (isBn && it.bundleTitleBn ? it.bundleTitleBn : it.bundleTitle) : (p.name || it.id), img: p.img || '', price: +it.price || p.price || 0, size: it.size, color: it.color, qty: it.qty };
     });
     return { sum: t.sum, disc: d, shipCost: ship, total: grand, items: list };
-  }, [cartTotals, promo, division, divCharge, FREE_SHIP, cart, BY_ID]);
+  }, [cartTotals, promo, division, divCharge, FREE_SHIP, cart, BY_ID, isBn]);
 
   /* Task 56-a — loyalty redemption: balance + rules load once per session */
   const [loyal, setLoyal] = useState(null);

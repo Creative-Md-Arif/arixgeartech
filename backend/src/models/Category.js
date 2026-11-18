@@ -15,6 +15,7 @@ const categorySchema = new mongoose.Schema(
     image: { type: String, default: '' },      // tile image URL
     order: { type: Number, default: 0 },
     active: { type: Boolean, default: true },
+    showInNavbar: { type: Boolean, default: true },
     /* Step 5 — DYNAMIC SPECIFICATION SYSTEM. Per-category unlimited spec
        groups + custom fields. Shape is owned by utils/specs.js (single source
        of truth; every write normalizes through normalizeSpecGroups()):

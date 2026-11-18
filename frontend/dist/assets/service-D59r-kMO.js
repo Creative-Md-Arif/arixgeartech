@@ -1,1 +1,0 @@
-import{b as t}from"./index-CFOLednT.js";const o=(e,r)=>t("/service/warranty",{method:"POST",body:e,signal:r}),s=(e,r,a)=>t("/service/warranty/"+encodeURIComponent(e)+"?phone="+encodeURIComponent(r||""),{signal:a}),c=e=>t("/service/centers",{auth:!1,signal:e});export{s as a,c as l,o as r};

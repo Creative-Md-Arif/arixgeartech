@@ -33,7 +33,7 @@ function RowImg({ p, onOpen }) {
 }
 
 export default function Page() {
-  const { t } = useLang();
+  const { t, isBn } = useLang();
   useSEO('shop', { title: 'Your Cart — arixgear.tech', description: 'Review your arixgear.tech cart and check out with bKash, Nagad, Rocket or Cash on Delivery.' });
 
   const { cart, setQty, cartTotals, session } = useStore();
@@ -117,7 +117,7 @@ export default function Page() {
             <div className="cart-lines border border-line bg-panel">
               {keys.map((k) => {
                 const it = cart[k];
-                if (it.bundle) return <div key={k} className="cart-row flex justify-between border-b border-line p-5"><div><b>{it.bundleTitle}</b><p className="text-xs text-dim">Combo bundle · server priced</p></div><div className="flex items-center gap-3"><button onClick={() => setQty(k, -1)}>−</button>{it.qty}<button onClick={() => setQty(k, 1)}>+</button><b>{money(it.price * it.qty)}</b></div></div>;
+                if (it.bundle) return <div key={k} className="cart-row flex justify-between border-b border-line p-5"><div><b>{isBn && it.bundleTitleBn ? it.bundleTitleBn : it.bundleTitle}</b><p className="text-xs text-dim">Combo bundle · server priced</p></div><div className="flex items-center gap-3"><button onClick={() => setQty(k, -1)}>−</button>{it.qty}<button onClick={() => setQty(k, 1)}>+</button><b>{money(it.price * it.qty)}</b></div></div>;
                 const p = at(it.id);
                 const unit = +it.price > 0 ? +it.price : (p ? p.price : 0);
                 return (

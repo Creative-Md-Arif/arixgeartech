@@ -8,7 +8,10 @@ const Product = require('../models/Product');
 const { saveImage } = require('../services/storageService');
 const cache = require('../services/cache');
 
-const slugify = (s) => String(s).toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+// Keep Bengali letters so localized brand names still produce useful routes.
+const slugify = (s) => String(s || '').toLowerCase().trim()
+  .replace(/[^a-z0-9\u0980-\u09FF]+/g, '-')
+  .replace(/(^-|-$)/g, '').slice(0, 120) || 'brand';
 const escapeRe = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 const withCounts = async (brands) => {
@@ -70,7 +73,7 @@ exports.create = async (req, res, next) => {
     const name = String((req.body || {}).name || '').trim();
     if (!name) return res.status(400).json({ message: 'Brand name is required' });
     const slug = slugify(req.body.slug || name);
-    const dupe = await Brand.findOne({ $or: [{ slug }, { name }] });
+    const dupe = await Brand.findOne({ $or: [{ slug }, { name: { $regex: `^${escapeRe(name)}$`, $options: 'i' } }] });
     if (dupe) return res.status(409).json({ message: `Brand "${dupe.name}" already exists` });
     const logo = req.file ? await saveImage(req.file, 'arixgear/brands') : null;
     const doc = await Brand.create({
@@ -96,9 +99,20 @@ exports.update = async (req, res, next) => {
     const b = await Brand.findById(req.params.id);
     if (!b) return res.status(404).json({ message: 'Brand not found' });
     const body = req.body || {};
-    if (body.name) b.name = String(body.name).trim();
+    if (body.name !== undefined) {
+      const name = String(body.name || '').trim();
+      if (!name) return res.status(400).json({ message: 'Brand name cannot be empty' });
+      const dupe = await Brand.findOne({ name: { $regex: `^${escapeRe(name)}$`, $options: 'i' }, _id: { $ne: b._id } });
+      if (dupe) return res.status(409).json({ message: `Brand "${dupe.name}" already exists` });
+      b.name = name;
+    }
     if (body.nameBn !== undefined) b.nameBn = String(body.nameBn || '').trim();
-    if (body.slug) b.slug = slugify(body.slug);
+    if (body.slug !== undefined || body.name !== undefined) {
+      const slug = slugify(body.slug || b.name);
+      const dupe = await Brand.findOne({ slug, _id: { $ne: b._id } });
+      if (dupe) return res.status(409).json({ message: `Brand slug "${slug}" is already in use` });
+      b.slug = slug;
+    }
     if (body.logo !== undefined) b.logo = body.logo;
     if (req.file) { const logo = await saveImage(req.file, 'arixgear/brands'); b.logo = logo.url; }
     if (body.description !== undefined) b.description = String(body.description || '');
@@ -116,9 +130,11 @@ exports.update = async (req, res, next) => {
 // DELETE /api/admin/brands/:id — products are detached (brand → null), never orphaned
 exports.remove = async (req, res, next) => {
   try {
-    const b = await Brand.findByIdAndDelete(req.params.id);
+    const b = await Brand.findById(req.params.id);
     if (!b) return res.status(404).json({ message: 'Brand not found' });
+    // Detach first: a failed product write must never leave dangling refs to a deleted brand.
     await Product.updateMany({ brand: b._id }, { $set: { brand: null } });
+    await b.deleteOne();
     cache.bump();
     res.json({ ok: true, detached: true });
   } catch (e) { next(e); }

@@ -37,29 +37,46 @@ async function expandBundle(line) {
   if (!Number.isInteger(qty) || qty < 1 || qty > 10) {
     return { error: [400, `Invalid quantity for bundle ${slug} (must be 1–10)`] };
   }
-  const bundle = await ComboBundle.findOne({ slug }).populate('items.product', 'name nameBn slug images price active category flash');
+  const bundle = await ComboBundle.findOne({ slug }).populate('items.product', 'name nameBn slug images price active category flash stock');
   if (!bundle || !bundle.isLive()) return { error: [400, `Bundle not available: ${slug}`] };
 
   const missing = (bundle.items || []).filter((i) => !i.product || i.product.active === false);
   if (missing.length) return { error: [409, `A component of ${bundle.title} just sold out / went inactive — bundle paused`] };
+  const short = (bundle.items || []).find((i) => Number(i.product.stock) < (+i.qty || 1) * qty);
+  if (short) return { error: [409, `Not enough stock for ${short.product.name} in ${bundle.title}`] };
 
-  const alloc = bundle.allocate();
+  const pricingItems = bundle.items.map((item) => {
+    const raw = typeof item.toObject === 'function' ? item.toObject() : item;
+    return { ...raw, price: Number(item.product.price) || 0 };
+  });
+  const componentsTotal = Math.round(pricingItems.reduce((sum, item) => sum + item.price * (+item.qty || 1), 0) * 100) / 100;
+  if (componentsTotal <= +bundle.bundlePrice) {
+    return { error: [409, `${bundle.title} is no longer priced below its components total`] };
+  }
+  const pricingBundle = {
+    items: pricingItems,
+    bundlePrice: bundle.bundlePrice,
+    componentsTotal: () => componentsTotal,
+  };
+  const alloc = ComboBundle.prototype.allocate.call(pricingBundle);
   const orderItems = bundle.items.map((i, idx) => {
-    const unit = alloc[idx].unit;
+    const componentQty = +i.qty || 1;
+    const componentTotal = +alloc[idx].unit || 0;
+    const unit = Math.round((componentTotal / componentQty) * 10000) / 10000;
+    const lineTotal = Math.round(componentTotal * qty * 100) / 100;
     return {
       product: i.product._id,
       name: i.product.name,
       nameBn: i.product.nameBn || '',
       slug: i.product.slug,
       image: i.product.images?.[0]?.url || '',
-      price: Math.round(unit * 100) / 100,
-      qty: (+i.qty || 1) * qty,
-      lineTotal: Math.round(unit * (+i.qty || 1) * qty * 100) / 100,
+      price: unit,
+      qty: componentQty * qty,
+      lineTotal,
       category: i.product.category,
       bundle: { slug: bundle.slug, title: bundle.title },
     };
   });
-  const componentsTotal = bundle.componentsTotal();
   const save = Math.max(Math.round((componentsTotal - +bundle.bundlePrice) * qty * 100) / 100, 0);
   return { items: orderItems, save, bundle, qty };
 }
@@ -71,6 +88,8 @@ const validBDPhone = (raw) => {
   const local = digits.replace(/^880/, '0').slice(-11);
   return /^01[3-9]\d{8}$/.test(local) ? local : null;
 };
+
+exports._expandBundle = expandBundle;
 
 /* Resolve the shared order-lookup + phone check used by tracking / cancel /
    invoice / returns. Access is granted when:
@@ -186,6 +205,7 @@ exports.placeOrder = async (req, res, next) => {
 
     /* ---- 2. items → server-side price calculation (Phase 4: bundles too) ---- */
     if (!Array.isArray(items) || items.length === 0) return res.status(400).json({ message: 'Cart is empty' });
+    if (items.some((line) => !line || typeof line !== 'object' || Array.isArray(line))) return res.status(400).json({ message: 'Cart lines must be product or bundle objects' });
     /* audit fix — a crafted 2MB body with thousands of bundle lines used to
        trigger thousands of sequential DB round-trips (cheap DoS on a public
        endpoint). Real carts are nowhere near 50 lines. */
@@ -509,6 +529,7 @@ exports.preview = async (req, res, next) => {
   try {
     const { items = [], couponCode, division, redeemPoints } = req.body || {};
     if (!Array.isArray(items) || items.length === 0) return res.status(400).json({ message: 'Cart is empty' });
+    if (items.some((line) => !line || typeof line !== 'object' || Array.isArray(line))) return res.status(400).json({ message: 'Cart lines must be product or bundle objects' });
     /* audit fix — same line cap as placeOrder (sequential bundle expansions) */
     if (items.length > 50) return res.status(400).json({ message: 'Too many cart lines (max 50)' });
 

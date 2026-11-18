@@ -22,11 +22,14 @@ function BundleCard({ bundle }) {
   const { t, isBn } = useLang();
   const [busy, setBusy] = useState(false);
 
-  const items = useMemo(() => (bundle.items || []).map((i) => BY_ID[i.slug]).filter(Boolean), [bundle.items, BY_ID, PRODUCTS]);
+  const items = useMemo(
+    () => (bundle.items || []).map((item) => ({ item, product: BY_ID[item.slug] })).filter((entry) => entry.product),
+    [bundle.items, BY_ID, PRODUCTS],
+  );
 
   if (items.length < 2) return null;
 
-  const total = items.reduce((a, p) => a + priceFor(p), 0);
+  const total = items.reduce((sum, entry) => sum + priceFor(entry.product) * (+entry.item.qty || 1), 0);
   const bundlePrice = +bundle.bundlePrice > 0 ? +bundle.bundlePrice : total;
   const savePct = total > 0 && bundlePrice < total ? Math.round((1 - bundlePrice / total) * 100) : 0;
 
@@ -35,7 +38,6 @@ function BundleCard({ bundle }) {
     addToCart(null, null, null, 1, false, bundle);
     setBusy(false);
     window.dispatchEvent(new CustomEvent('forged:open-drawer', { detail: 'cart' }));
-    window.dispatchEvent(new CustomEvent('forged:toast', { detail: { title: tr('Bundle added to cart'), sub: pick(bundle, 'title') + ' — ' + items.length + ' items' } }));
   };
 
   return (
@@ -52,10 +54,10 @@ function BundleCard({ bundle }) {
         </div>
       </div>
       <div className="grid flex-1 grid-cols-3 gap-px bg-line">
-        {items.map((p) => (
+        {items.map(({ item, product: p }) => (
           <Link key={p.id} to={'/product/' + p.id} className="group flex flex-col items-center bg-panel p-3 text-center transition-colors hover:bg-bg2">
-            <img src={p.img} alt={p.name} className="h-16 w-16 object-contain" />
-            <span className="mt-2 line-clamp-2 text-[.72rem] leading-tight text-muted transition-colors group-hover:text-txt">{isBn && p.nameBn ? p.nameBn : p.name}</span>
+            <img src={p.img} alt={isBn && p.nameBn ? p.nameBn : p.name} className="h-16 w-16 object-contain" />
+            <span className="mt-2 line-clamp-2 text-[.72rem] leading-tight text-muted transition-colors group-hover:text-txt">{isBn && p.nameBn ? p.nameBn : p.name}{(+item.qty || 1) > 1 ? ' ×' + item.qty : ''}</span>
           </Link>
         ))}
       </div>

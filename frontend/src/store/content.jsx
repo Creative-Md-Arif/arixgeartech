@@ -1,7 +1,7 @@
 /* ArixGear store — site content + live settings + home content (100% admin-driven).
    All fetches go through src/services/*; shells are EMPTY (same key shapes) — the
    backend serves contentDefaults merged into /settings/content, so no client copy. */
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { getContent, getPayment, getShipping } from '../services/settings.js';
 import { listBanners } from '../services/banners.js';
 import { listHomeSections } from '../services/sections.js';
@@ -39,8 +39,13 @@ export function ContentProvider({ children }) {
     const cached = readHomeCache('forged_home_side_banners', null);
     return Array.isArray(cached) ? cached : [];
   });   /* Phase 3 — hero side promos */
-  const [catTree, setCatTree] = useState([]);           /* Phase 3 — secondary category navbar */
-  const [catTreeReady, setCatTreeReady] = useState(false);
+  const [catTree, setCatTree] = useState(() => {
+    const cached = readHomeCache('forged_category_tree', null);
+    return cached && Array.isArray(cached.items) ? cached.items : [];
+  });           /* Phase 3 — secondary category navbar */
+  const [catTreeReady, setCatTreeReady] = useState(() => !!readHomeCache('forged_category_tree', null));
+  const [catTreeError, setCatTreeError] = useState(false);
+  const categoryTreeRequest = useRef(false);
   const [homeSections, setHomeSections] = useState(() => {
     const cached = readHomeCache('forged_home_sections', null);
     return cached && Array.isArray(cached.items) && Array.isArray(cached.hidden)
@@ -48,6 +53,23 @@ export function ContentProvider({ children }) {
       : { items: [], hidden: [] };
   });
   const [homeDataReady, setHomeDataReady] = useState(false);
+
+  const refreshCategoryTree = useCallback(async () => {
+    if (categoryTreeRequest.current) return;
+    categoryTreeRequest.current = true;
+    setCatTreeError(false);
+    try {
+      const d = await getCategoryTree();
+      const items = d && Array.isArray(d.items) ? d.items : [];
+      setCatTree(items);
+      try { localStorage.setItem('forged_category_tree', JSON.stringify({ items })); } catch {}
+    } catch (_e) {
+      setCatTreeError(true);
+    } finally {
+      categoryTreeRequest.current = false;
+      setCatTreeReady(true);
+    }
+  }, []);
 
   useEffect(() => {
     const requests = [
@@ -75,9 +97,7 @@ export function ContentProvider({ children }) {
           try { localStorage.setItem('forged_home_side_banners', JSON.stringify(items)); } catch {}
         }
       }), /* spec: 2 side promos */
-      getCategoryTree()
-        .then((d) => { if (d && d.items) setCatTree(d.items); })
-        .finally(() => setCatTreeReady(true)),
+      refreshCategoryTree(),
       listHomeSections().then((d) => {
         if (d && d.items) {
           const next = { items: d.items, hidden: d.hidden || [] };
@@ -87,7 +107,22 @@ export function ContentProvider({ children }) {
       }),
     ];
     Promise.allSettled(requests).then(() => setHomeDataReady(true));
-  }, []);
+  }, [refreshCategoryTree]);
+
+  useEffect(() => {
+    const refreshVisibleCategoryTree = () => {
+      if (document.visibilityState === 'hidden') return;
+      refreshCategoryTree();
+    };
+    window.addEventListener('focus', refreshVisibleCategoryTree);
+    document.addEventListener('visibilitychange', refreshVisibleCategoryTree);
+    const timer = window.setInterval(refreshVisibleCategoryTree, 15000);
+    return () => {
+      window.removeEventListener('focus', refreshVisibleCategoryTree);
+      document.removeEventListener('visibilitychange', refreshVisibleCategoryTree);
+      window.clearInterval(timer);
+    };
+  }, [refreshCategoryTree]);
 
   /* Homepage admins can update sections while the storefront tab is open.
      Revalidate the section list when the tab becomes active and periodically
@@ -124,7 +159,7 @@ export function ContentProvider({ children }) {
   const sectionVisible = (key) => !homeSections.hidden.includes(key);
 
   const value = {
-    content, payInfo, shipCfg, heroSlides, sideBanners, catTree, catTreeReady, homeSections: homeSections.items, homeDataReady,
+    content, payInfo, shipCfg, heroSlides, sideBanners, catTree, catTreeReady, catTreeError, refreshCategoryTree, homeSections: homeSections.items, homeDataReady,
     hiddenSections: homeSections.hidden, divCharge, sectionCfg, sectionVisible,
     FREE_SHIP: shipCfg.freeThreshold,
   };

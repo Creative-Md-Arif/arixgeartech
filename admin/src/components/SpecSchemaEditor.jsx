@@ -5,7 +5,7 @@
    apply a template in merge or replace mode). Everything is schema-driven:
    adding a field here instantly drives the product editor, the PDP and the
    shop filters — no developer code changes. */
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { tr, useLang } from '../lib/i18n.jsx';
 import { useConfirm, usePrompt } from './ui.jsx';
 import { saveSchema, listTemplates, createTemplate, applyTemplate, removeTemplate, applyDefaults, aliasSuggestions } from '../services/specs.js';
@@ -16,6 +16,27 @@ const GHOST_BTN = 'rounded-lg border border-line2 px-3 py-1.5 text-[11.5px] font
 const RED_BTN = 'rounded-lg border border-red/40 bg-red/10 px-3 py-1.5 text-[11.5px] font-bold uppercase tracking-[.08em] text-red hover:bg-red/20';
 const DRAG = 'cursor-grab select-none text-dim2 hover:text-acc';
 const TOGGLE = (on) => 'rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ' + (on ? 'border-acc bg-acc/15 text-acc' : 'border-line2 text-dim2');
+
+function getParentId(category) {
+  const parent = category && category.parent;
+  if (!parent) return '';
+  if (typeof parent === 'object') return String(parent._id || parent.id || '');
+  return String(parent);
+}
+
+function getRootCategory(category, categoriesById) {
+  let current = category;
+  const visited = new Set();
+  while (current) {
+    const parentId = getParentId(current);
+    if (!parentId || visited.has(parentId)) break;
+    visited.add(parentId);
+    const parent = categoriesById.get(parentId);
+    if (!parent) break;
+    current = parent;
+  }
+  return current;
+}
 
 /* parse a compact alias CSV ("raw=canonical, raw2=canonical2") → object */
 const parseAliases = (s) => Object.fromEntries(
@@ -71,7 +92,51 @@ export default function SpecSchemaEditor({ categories, initialSlug, onSaved, toa
   const prompt = usePrompt();
   const { isBn } = useLang();
   const [slug, setSlug] = useState(initialSlug || (categories[0] && categories[0].slug) || '');
+  const [categorySearch, setCategorySearch] = useState('');
   const cat = categories.find((c) => c.slug === slug);
+  const categoriesById = useMemo(
+    () => new Map(categories.filter((c) => c._id).map((c) => [String(c._id), c])),
+    [categories],
+  );
+  const categoriesBySlug = useMemo(
+    () => new Map(categories.map((c) => [c.slug, c])),
+    [categories],
+  );
+  const mainCategories = useMemo(
+    () => categories
+      .filter((c) => {
+        const parentId = getParentId(c);
+        return !parentId || !categoriesById.has(parentId);
+      })
+      .sort((a, b) => (a.order || 0) - (b.order || 0) || a.name.localeCompare(b.name)),
+    [categories, categoriesById],
+  );
+  const rootBySlug = useMemo(() => {
+    const roots = new Map();
+    categories.forEach((c) => roots.set(c.slug, getRootCategory(c, categoriesById)?.slug || c.slug));
+    return roots;
+  }, [categories, categoriesById]);
+  const selectedMainCategory = mainCategories.find((c) => c.slug === rootBySlug.get(slug)) || mainCategories[0];
+  const scopedCategories = categories
+    .filter((c) => c.slug === selectedMainCategory?.slug || rootBySlug.get(c.slug) === selectedMainCategory?.slug)
+    .sort((a, b) => {
+      const aPath = Array.isArray(a.path) ? a.path.length : 0;
+      const bPath = Array.isArray(b.path) ? b.path.length : 0;
+      return aPath - bPath || (a.order || 0) - (b.order || 0) || a.name.localeCompare(b.name);
+    });
+  const normalizedCategorySearch = categorySearch.trim().toLocaleLowerCase();
+  const visibleCategories = scopedCategories.filter((c) => {
+    if (!normalizedCategorySearch) return true;
+    const path = Array.isArray(c.path) ? c.path : [];
+    const pathLabel = [...path, ...(path.includes(c.slug) ? [] : [c.slug])]
+      .map((pathSlug) => categoriesBySlug.get(pathSlug)?.name || pathSlug)
+      .join(' ');
+    return [c.name, c.nameBn, c.slug, pathLabel]
+      .filter(Boolean)
+      .join(' ')
+      .toLocaleLowerCase()
+      .includes(normalizedCategorySearch);
+  });
   const [groups, setGroups] = useState([]);
   const [hideEmpty, setHideEmpty] = useState(true);
   const [templates, setTemplates] = useState([]);
@@ -209,9 +274,65 @@ export default function SpecSchemaEditor({ categories, initialSlug, onSaved, toa
     <div id="specSchemaEditor">
       {/* category picker + template actions */}
       <div className="mb-3 flex flex-wrap items-center gap-2">
-        <select id="ssCat" value={slug} onChange={(e) => setSlug(e.target.value)} className="w-auto">
-          {categories.map((c) => <option key={c.slug} value={c.slug}>{(c.path && c.path.length > 1 ? c.path[0] + ' → ' : '') + c.name}</option>)}
+        <select
+          id="ssMainCategory"
+          aria-label={tr('Main category')}
+          value={selectedMainCategory?.slug || ''}
+          onChange={(e) => {
+            setSlug(e.target.value);
+            setCategorySearch('');
+          }}
+          className="w-auto"
+        >
+          {mainCategories.map((c) => (
+            <option key={c.slug} value={c.slug}>{isBn && c.nameBn ? c.nameBn : c.name}</option>
+          ))}
         </select>
+        <input
+          id="ssCategorySearch"
+          type="search"
+          className="min-w-[220px] flex-1"
+          value={categorySearch}
+          onChange={(e) => setCategorySearch(e.target.value)}
+          placeholder={tr('Search categories within this main category')}
+          aria-label={tr('Search categories within this main category')}
+        />
+        <div
+          id="ssCategoryList"
+          className="max-h-36 w-full overflow-y-auto rounded-lg border border-line bg-panel2 p-1.5"
+          aria-label={tr('Categories in this main category')}
+        >
+          {visibleCategories.map((c) => {
+            const path = Array.isArray(c.path) ? c.path : [];
+            const pathLabel = [...path, ...(path.includes(c.slug) ? [] : [c.slug])]
+              .map((pathSlug) => categoriesBySlug.get(pathSlug)?.name || pathSlug)
+              .join(' → ');
+            const selected = c.slug === slug;
+            return (
+              <button
+                type="button"
+                key={c.slug}
+                aria-pressed={selected}
+                onClick={() => setSlug(c.slug)}
+                className={
+                  'block w-full rounded-md px-2.5 py-1.5 text-left text-[12px] hover:bg-panel ' +
+                  (selected ? 'bg-acc/15 font-bold text-acc' : 'text-txt')
+                }
+                title={pathLabel}
+              >
+                {isBn && c.nameBn ? c.nameBn : c.name}
+                {c.slug !== selectedMainCategory?.slug ? (
+                  <span className="ml-2 text-[10px] text-dim2">{pathLabel}</span>
+                ) : null}
+              </button>
+            );
+          })}
+          {!visibleCategories.length ? (
+            <p className="px-2.5 py-2 text-[11.5px] text-dim2">
+              {tr('No categories match this search.')}
+            </p>
+          ) : null}
+        </div>
         <span className="text-[11.5px] text-dim2">{groups.length} {tr('groups')} · {groups.reduce((a, g) => a + (g.fields || []).length, 0)} {tr('fields')}</span>
         {dirty ? <span className={TOGGLE(true)}>{tr('unsaved')}</span> : null}
         {/* Step 6 — schema version + audit trail (who edited what, last 20) */}

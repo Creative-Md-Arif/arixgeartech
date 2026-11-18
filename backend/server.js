@@ -288,6 +288,7 @@ function prodChecklist(rs) {
 }
 
 let server;
+let aiImportRecoveryTimer;
 connectDB()
   .then(async (rs) => {
     if (isProd) prodChecklist(rs);
@@ -303,6 +304,19 @@ connectDB()
         console.log(`[boot] spec migration auto-ran — ${r.migrated} products, ${r.schemasGrown} category schemas grown`);
       }
     } catch (e) { console.warn('[boot] spec migration skipped:', e.message); }
+    const aiImporter = require('./src/services/ai/importer');
+    const recoverAiImports = async () => {
+      try {
+        const result = await aiImporter.recoverStuckImports();
+        if (result.failed || result.resumed) {
+          console.warn(`[ai-import] recovery: ${result.failed} stalled, ${result.resumed} pending resumed`);
+        }
+      } catch (e) {
+        console.error('[ai-import] recovery check failed:', e.message);
+      }
+    };
+    await recoverAiImports();
+    aiImportRecoveryTimer = setInterval(recoverAiImports, 60_000);
     const httpServer = require('http').createServer(app);
     /* Phase 4 (4.3) — Socket.IO gateway (JWT handshake, user/admin/order rooms).
        SSE stays for the existing bells; this is the additive realtime channel. */
@@ -323,6 +337,7 @@ connectDB()
 /* ---------- graceful shutdown ---------- */
 function shutdown(signal) {
   console.log(`\n[${signal}] shutting down…`);
+  if (aiImportRecoveryTimer) clearInterval(aiImportRecoveryTimer);
   if (server) {
     server.close(() => {
       const mongoose = require('mongoose');

@@ -354,11 +354,17 @@ export default function Page() {
     } finally { setVtBusy(false); }
   };
 
-  const doLogout = () => {
-    logout();
+  const doLogout = async () => {
+    let serverLogoutFailed = false;
+    try { await logout(); } catch (_e) { serverLogoutFailed = true; }
     /* Task 51 — a fresh logged-out view must open on Log In, never on the OTP screen */
     setTab('login'); setVtCode(''); setVtErr(''); setVtDev(null); setRsLeft(0);
-    toast(t('Logged out'), t('The bar will be here when you are back.'));
+    toast(
+      serverLogoutFailed ? t('Signed out on this device') : t('Logged out'),
+      serverLogoutFailed
+        ? t('Server logout could not be confirmed. Retry if this device is shared.')
+        : t('The bar will be here when you are back.'),
+    );
   };
 
   const doForgot = async (e) => {

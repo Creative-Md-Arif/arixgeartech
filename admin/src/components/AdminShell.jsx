@@ -2,7 +2,7 @@
    for the 34-module console, topbar + pills, theme + lang toggles.
    Groups persist their collapsed state in localStorage; sub-admins only see
    groups/modules granted to them; Team + Audit stay owner-only. */
-import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Link, Outlet, useLocation } from "react-router-dom";
 import { auth, logout, requireAuth } from "../lib/admin.js";
 import { getStats } from "../services/stats.js";
@@ -295,14 +295,12 @@ export default function AdminShell({ active, title, children, persistentShell = 
   const location = useLocation();
 
   /* Keep the menu position stable while route pages remount the shell. */
-  useEffect(() => {
+  useLayoutEffect(() => {
     const nav = sidebarNavRef.current;
     if (!nav) return undefined;
     const storageKey = "arixgear-admin-sidebar-scroll";
     const saved = Number(sessionStorage.getItem(storageKey) || 0);
-    requestAnimationFrame(() => {
-      nav.scrollTop = saved;
-    });
+    nav.scrollTop = saved;
     const remember = () =>
       sessionStorage.setItem(storageKey, String(nav.scrollTop));
     nav.addEventListener("scroll", remember, { passive: true });
@@ -562,6 +560,7 @@ export default function AdminShell({ active, title, children, persistentShell = 
         <header
           className="sticky top-0 z-30 flex items-center gap-2 border-b border-line bg-bg/85 px-3 py-3.5 backdrop-blur md:gap-4 md:px-7"
           id="topbar"
+          aria-busy={persistentShell && !active}
         >
           <button
             className="btn-ghost rounded-lg border border-line2 px-3 py-1.5 text-[12px] lg:hidden"
@@ -575,7 +574,9 @@ export default function AdminShell({ active, title, children, persistentShell = 
             id="pageTitle"
             className="min-w-0 truncate text-[17px] md:text-[22px]"
           >
-            {title}
+            {persistentShell && !active ? (
+              <span className="block h-5 w-36 animate-pulse rounded bg-line/60" data-testid="headerSkeleton" aria-hidden="true" />
+            ) : title}
           </h1>
           <div className="spacer flex-1" />
           <CommandPalette />
@@ -598,15 +599,19 @@ export default function AdminShell({ active, title, children, persistentShell = 
           <button
             className="btn-ghost hidden rounded-lg border border-line2 px-3 py-1.5 text-[12px] font-bold uppercase tracking-[.08em] hover:border-acc hover:text-acc sm:block"
             id="logoutBtn"
-            onClick={() => {
-              logout();
+            onClick={async () => {
+              try {
+                await logout();
+              } catch (e) {
+                window.alert("Server logout could not be confirmed. Retry if this device is shared. " + (e.message || ""));
+              }
             }}
           >
             {tr("Logout")}
           </button>
         </header>
         <div
-          className="w-full max-w-[1500px] px-4 pb-16 pt-6 md:px-7"
+          className="w-full max-w-none px-4 pb-16 pt-6 md:px-7"
           id="view"
         >
           {children}

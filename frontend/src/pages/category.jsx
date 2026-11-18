@@ -11,19 +11,24 @@ import { useLang } from '../lib/i18n.jsx';
 
 export default function Page() {
   const { slug } = useParams();
-  const { catTree } = useContent();
+  const { catTree, catTreeReady, catTreeError, refreshCategoryTree } = useContent();
   const { t, isBn } = useLang();
 
-  /* resolve the slug against the live tree — roots first, then their children */
+  /* Resolve any depth in the live tree and retain every breadcrumb ancestor. */
   const cat = useMemo(() => {
-    if (!catTree || !catTree.length) return undefined; // undefined = still loading
-    for (const root of catTree) {
-      if (root.slug === slug) return { ...root, parentName: null, parentSlug: null };
-      const child = (root.children || []).find((c) => c.slug === slug);
-      if (child) return { ...child, parentName: root.name, parentSlug: root.slug };
-    }
+    if (!catTreeReady) return undefined;
+    const find = (nodes, ancestors = []) => {
+      for (const node of nodes || []) {
+        if (node.slug === slug) return { ...node, ancestors };
+        const found = find(node.children, [...ancestors, node]);
+        if (found) return found;
+      }
+      return null;
+    };
+    const found = find(catTree || []);
+    if (found) return found;
     return null; // known tree, unknown slug → honest miss
-  }, [catTree, slug]);
+  }, [catTree, catTreeReady, slug]);
 
   const label = cat && cat.name ? (isBn && cat.nameBn ? cat.nameBn : cat.name) : '';
 
@@ -41,6 +46,20 @@ export default function Page() {
         <div className="container mx-auto w-[92%]">
           <div className="h-3 w-40 animate-pulse bg-line/60" />
           <div className="mt-6 h-12 w-80 max-w-full animate-pulse bg-line/40" />
+        </div>
+      </section>
+    );
+  }
+
+  if (!cat && catTreeError) {
+    return (
+      <section className="page py-16 lg:py-24">
+        <div className="container mx-auto w-[92%]">
+          <div className="border border-dashed border-line2 px-8 py-16 text-center" role="alert" data-testid="categoryLoadError">
+            <h2 className="font-disp text-[2rem] uppercase text-txt">Categories unavailable</h2>
+            <p className="mt-3 text-muted">The category tree could not be loaded. Check your connection and try again.</p>
+            <button type="button" onClick={refreshCategoryTree} className="mt-6 border border-line2 px-6 py-3 font-head text-[.8rem] font-extrabold uppercase tracking-[.18em] text-acc">Try again</button>
+          </div>
         </div>
       </section>
     );
@@ -73,12 +92,12 @@ export default function Page() {
         <nav className="mb-6 flex items-center gap-2 font-cond text-[.8rem] uppercase tracking-[.18em] text-dim" aria-label="Breadcrumb">
           <Link to="/" className="transition-colors hover:text-acc">{t('Home')}</Link>
           <span>/</span>
-          {cat.parentSlug ? (
-            <>
-              <Link to={'/category/' + cat.parentSlug} className="transition-colors hover:text-acc">{t(cat.parentName)}</Link>
+          {(cat.ancestors || []).map((ancestor) => (
+            <span key={ancestor.slug} className="contents">
+              <Link to={'/category/' + encodeURIComponent(ancestor.slug)} className="transition-colors hover:text-acc">{isBn && ancestor.nameBn ? ancestor.nameBn : t(ancestor.name)}</Link>
               <span>/</span>
-            </>
-          ) : null}
+            </span>
+          ))}
           <span className="text-silver">{label}</span>
         </nav>
 

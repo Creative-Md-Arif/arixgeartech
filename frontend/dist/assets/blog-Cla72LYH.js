@@ -1,1 +1,0 @@
-import{b as n}from"./index-CFOLednT.js";const i=({limit:t,page:o,tag:e,signal:r}={})=>{const s=new URLSearchParams;return t&&s.set("limit",t),o&&s.set("page",o),e&&s.set("tag",e),n(`/blog?${s.toString()}`,{signal:r})},c=(t,o)=>n(`/blog/${encodeURIComponent(t)}`,{signal:o});export{c as g,i as l};

@@ -77,8 +77,12 @@ export default function Page() {
       .finally(() => setPwBusy(false));
   };
 
-  const doLogout = () => {
-    logout();
+  const doLogout = async () => {
+    let serverLogoutFailed = false;
+    try { await logout(); } catch (_e) { serverLogoutFailed = true; }
+    if (serverLogoutFailed) {
+      toast(t('Signed out on this device'), t('Server logout could not be confirmed. Retry if this device is shared.'));
+    }
     nav('/');
   };
 

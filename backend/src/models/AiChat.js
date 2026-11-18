@@ -44,9 +44,16 @@ aiChatSchema.index({ createdAt: -1 });
 aiChatSchema.statics.MAX_MESSAGES = 80;
 
 aiChatSchema.statics.findOrCreate = async function ({ sessionKey, user, channel }) {
-  let doc = await this.findOne({ sessionKey, channel: channel || 'web' });
-  if (!doc) doc = await this.create({ sessionKey, user: user || null, channel: channel || 'web', messages: [] });
-  else if (user && !doc.user) { doc.user = user; await doc.save(); }
+  const scope = { sessionKey, channel: channel || 'web' };
+  let doc = await this.findOne({ ...scope, user: user || null });
+  if (!doc && user) {
+    doc = await this.findOneAndUpdate(
+      { ...scope, user: null },
+      { $set: { user } },
+      { new: true }
+    );
+  }
+  if (!doc) doc = await this.create({ ...scope, user: user || null, messages: [] });
   return doc;
 };
 

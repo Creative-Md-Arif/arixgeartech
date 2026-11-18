@@ -24,6 +24,9 @@ export const resendVerification = (email, signal) =>
 /* GET /api/auth/me — current user */
 export const me = (signal) => api('/auth/me', { signal });
 
+/* POST /api/auth/logout — revoke the browser's HttpOnly session cookie */
+export const logout = (signal) => api('/auth/logout', { method: 'POST', signal });
+
 /* POST /api/auth/forgot-password — { email } → { message, delivery, resetUrl? } */
 export const forgotPassword = (email, signal) =>
   api('/auth/forgot-password', { method: 'POST', body: { email }, signal });

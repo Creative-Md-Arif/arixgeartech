@@ -24,6 +24,7 @@ const aiImportSchema = new mongoose.Schema(
       type: String, enum: ['pending', 'processing', 'ready', 'imported', 'rejected', 'failed'],
       default: 'pending', index: true,
     },
+    processingToken: { type: String, default: '', select: false },
     progress: { type: Number, default: 0, min: 0, max: 100 }, // 0 queued · 30 fetched · 55 extracted · 80 rewritten · 100 staged
     error: { type: String, default: '', maxlength: 600 },
 
@@ -31,6 +32,7 @@ const aiImportSchema = new mongoose.Schema(
     extracted: {
       name: { type: String, default: '', maxlength: 300 },
       brandGuess: { type: String, default: '', maxlength: 80 },
+      categoryGuess: { type: String, default: '', maxlength: 120 },
       price: { type: Number, default: null, min: 0 },
       currency: { type: String, default: 'BDT', maxlength: 8 },
       availability: { type: String, default: '', maxlength: 40 },
@@ -67,9 +69,20 @@ const aiImportSchema = new mongoose.Schema(
     price: { type: Number, default: null, min: 0 },
     comparePrice: { type: Number, default: null, min: 0 },
     category: { type: String, default: '', lowercase: true, trim: true, maxlength: 80 },
+    categoryManual: { type: Boolean, default: false },
+    manualCategoryName: { type: String, default: '', trim: true, maxlength: 80 },
+    categoryParent: { type: String, default: '', lowercase: true, trim: true, maxlength: 80 },
     categoryGuess: { type: String, default: '', lowercase: true, trim: true, maxlength: 80 },
     brand: { type: mongoose.Schema.Types.ObjectId, ref: 'Brand', default: null },
+    brandName: { type: String, default: '', trim: true, maxlength: 80 },
     brandGuessSlug: { type: String, default: '', maxlength: 80 },
+    autoDetect: {
+      categorySource: { type: String, default: 'rules', maxlength: 40 },
+      categoryConfidence: { type: Number, default: 0, min: 0, max: 1 },
+      brandSource: { type: String, default: 'rules', maxlength: 40 },
+      brandConfidence: { type: Number, default: 0, min: 0, max: 1 },
+      model: { type: String, default: '', maxlength: 100 },
+    },
     warrantyMonths: { type: Number, default: 0, min: 0, max: 240 },
 
     /* re-hosted images (Cloudinary) or the kept remote URLs */

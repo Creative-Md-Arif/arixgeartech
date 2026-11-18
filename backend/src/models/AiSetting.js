@@ -103,6 +103,7 @@ aiSettingSchema.statics.resolveProvider = async function () {
   let baseUrl = s.openai.baseUrl || envBase;
   let openaiModel = s.openai.model || process.env.OPENAI_MODEL || '';
   let openaiKey = s.openai.apiKey || envOpenai;
+  const openaiKeySource = s.openai.apiKey ? 'db' : envOpenai ? 'env' : 'none';
 
   if (want === 'auto') {
     if (key) { provider = 'gemini'; }
@@ -112,7 +113,7 @@ aiSettingSchema.statics.resolveProvider = async function () {
   if (provider === 'gemini' && !key) provider = 'rules';
   if (provider === 'openai' && !baseUrl) provider = 'rules';
 
-  return { provider, model, key, keySource, baseUrl, openaiModel, openaiKey, temperature: s.temperature, maxOutputTokens: s.maxOutputTokens, timeoutMs: s.timeoutMs };
+  return { provider, model, key, keySource, baseUrl, openaiModel, openaiKey, openaiKeySource, temperature: s.temperature, maxOutputTokens: s.maxOutputTokens, timeoutMs: s.timeoutMs };
 };
 
 /** Admin-facing view — secrets masked. A save carrying the mask keeps the stored value. */
@@ -124,7 +125,7 @@ aiSettingSchema.statics.adminView = async function () {
     runtime: {
       effectiveProvider: rt.provider,
       keyConfigured: rt.keySource !== 'none' || Boolean(rt.openaiKey),
-      keySource: rt.keySource,
+      keySource: rt.provider === 'openai' ? rt.openaiKeySource : rt.keySource,
       cloudinary: Boolean(process.env.CLOUDINARY_URL || (process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET)),
       rulesMode: rt.provider === 'rules',
     },

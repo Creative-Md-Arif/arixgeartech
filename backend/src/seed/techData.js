@@ -1,6 +1,6 @@
 /**
  * arixgear.tech — Phase 2 tech seed data (catalog half).
- * Categories: 11 roots + subcategories (2-level tree).
+ * Categories: 10 roots with a maximum depth of three levels.
  * Products: 40 tech items with brand refs, warranty, SKUs (ARG-XXX-###),
  * specs and BDT prices. Brand/category values are SLUGS here — seed.js
  * resolves them to ObjectId refs + categoryPath at insert time.
@@ -29,43 +29,258 @@ const BRANDS = [
 ];
 
 /* tree: parent null = root. order controls the mega-nav / tile grid. */
-const CATEGORIES = [
-  { slug: 'laptops', name: 'Laptops', nameBn: 'ল্যাপটপ', image: '/assets/cat-laptops.png', order: 1, parent: null },
-  { slug: 'ultrabooks', name: 'Ultrabooks', nameBn: 'আল্ট্রাবুক', order: 1, parent: 'laptops' },
-  { slug: 'gaming-laptops', name: 'Gaming Laptops', nameBn: 'গেমিং ল্যাপটপ', order: 2, parent: 'laptops' },
-  { slug: 'creator-laptops', name: 'Creator Laptops', nameBn: 'ক্রিয়েটর ল্যাপটপ', order: 3, parent: 'laptops' },
-  { slug: 'desktops', name: 'Desktops', nameBn: 'ডেস্কটপ', image: '/assets/cat-desktops.png', order: 2, parent: null },
-  { slug: 'mini-pcs', name: 'Mini PCs', nameBn: 'মিনি পিসি', order: 1, parent: 'desktops' },
-  { slug: 'gaming-desktops', name: 'Gaming Desktops', nameBn: 'গেমিং ডেস্কটপ', order: 2, parent: 'desktops' },
-  { slug: 'all-in-one', name: 'All-in-One', nameBn: 'অল-ইন-ওয়ান', order: 3, parent: 'desktops' },
-  { slug: 'components', name: 'Components', nameBn: 'কম্পোনেন্টস', image: '/assets/cat-components.png', order: 3, parent: null },
+const ROOT_CATEGORIES = [
+  { slug: 'accessories', name: 'Accessories & Gadgets', nameBn: 'এক্সেসরিজ ও গ্যাজেট', image: '/assets/cat-accessories.png', order: 1, parent: null },
+  { slug: 'mobile-accessories', name: 'Mobile Accessories', nameBn: 'মোবাইল এক্সেসরিজ', order: 1, parent: 'accessories' },
+  { slug: 'computer-accessories', name: 'Computer & Laptop Accessories', nameBn: 'কম্পিউটার ও ল্যাপটপ এক্সেসরিজ', order: 2, parent: 'accessories' },
+  { slug: 'keyboards', name: 'Keyboards', nameBn: 'কীবোর্ড', order: 1, parent: 'computer-accessories' },
+  { slug: 'mice', name: 'Mice', nameBn: 'মাউস', order: 2, parent: 'computer-accessories' },
+  { slug: 'audio', name: 'Audio Accessories', nameBn: 'অডিও এক্সেসরিজ', order: 3, parent: 'accessories' },
+  { slug: 'gaming', name: 'Gaming Accessories', nameBn: 'গেমিং এক্সেসরিজ', image: '/assets/cat-gaming.png', order: 4, parent: 'accessories' },
+  { slug: 'controllers', name: 'Controllers', nameBn: 'কন্ট্রোলার', order: 1, parent: 'gaming' },
+  { slug: 'gaming-headsets', name: 'Gaming Headsets', nameBn: 'গেমিং হেডসেট', order: 2, parent: 'gaming' },
+  { slug: 'cables-adapters-hubs', name: 'Cables, Adapters & Hubs', nameBn: 'কেবল, অ্যাডাপ্টার ও হাব', order: 5, parent: 'accessories' },
+  { slug: 'storage-memory', name: 'Storage & Memory', nameBn: 'স্টোরেজ ও মেমোরি', order: 6, parent: 'accessories' },
+  { slug: 'smart-gadgets', name: 'Wearables & Smart Gadgets', nameBn: 'ওয়্যারেবল ও স্মার্ট গ্যাজেট', order: 7, parent: 'accessories' },
+
+  { slug: 'components', name: 'PC Components & Monitors', nameBn: 'পিসি কম্পোনেন্ট ও মনিটর', image: '/assets/cat-components.png', order: 2, parent: null },
   { slug: 'graphics-cards', name: 'Graphics Cards', nameBn: 'গ্রাফিক্স কার্ড', order: 1, parent: 'components' },
   { slug: 'processors', name: 'Processors', nameBn: 'প্রসেসর', order: 2, parent: 'components' },
   { slug: 'memory', name: 'Memory (RAM)', nameBn: 'র‍্যাম', order: 3, parent: 'components' },
   { slug: 'storage', name: 'Storage (SSD)', nameBn: 'স্টোরেজ', order: 4, parent: 'components' },
-  { slug: 'monitors', name: 'Monitors', nameBn: 'মনিটর', image: '/assets/cat-monitors.png', order: 4, parent: null },
-  { slug: 'appliances', name: 'Appliances', nameBn: 'হোম অ্যাপ্লায়েন্স', image: '/assets/cat-appliances.png', order: 5, parent: null },
+  { slug: 'monitors', name: 'Monitors', nameBn: 'মনিটর', image: '/assets/cat-monitors.png', order: 5, parent: 'components' },
+
+  { slug: 'phones', name: 'Phones & Tablets', nameBn: 'ফোন ও ট্যাবলেট', image: '/assets/cat-phones.png', order: 3, parent: null },
+  { slug: 'smartphones', name: 'Smartphones', nameBn: 'স্মার্টফোন', order: 1, parent: 'phones' },
+  { slug: 'wearables', name: 'Wearables', nameBn: 'ওয়্যারেবল', order: 2, parent: 'phones' },
+  { slug: 'tablets', name: 'Tablets', nameBn: 'ট্যাবলেট', image: '/assets/cat-tablets.png', order: 3, parent: 'phones' },
+
+  { slug: 'networking', name: 'Networking & Security', nameBn: 'নেটওয়ার্কিং ও সিকিউরিটি', image: '/assets/cat-networking.png', order: 4, parent: null },
+  { slug: 'routers', name: 'Routers', nameBn: 'রাউটার', order: 1, parent: 'networking' },
+  { slug: 'mesh', name: 'Mesh Wi-Fi', nameBn: 'মেশ ওয়াই-ফাই', order: 2, parent: 'networking' },
+  { slug: 'security', name: 'Security', nameBn: 'সিকিউরিটি', order: 3, parent: 'networking' },
+  { slug: 'cctv-cameras', name: 'CCTV Cameras', nameBn: 'সিসিটিভি ক্যামেরা', order: 1, parent: 'security' },
+  { slug: 'smart-security', name: 'Smart Security', nameBn: 'স্মার্ট সিকিউরিটি', order: 2, parent: 'security' },
+
+  { slug: 'appliances', name: 'Home Appliances', nameBn: 'হোম অ্যাপ্লায়েন্স', image: '/assets/cat-appliances.png', order: 5, parent: null },
   { slug: 'air-conditioners', name: 'Air Conditioners', nameBn: 'এসি', order: 1, parent: 'appliances' },
   { slug: 'refrigerators', name: 'Refrigerators', nameBn: 'ফ্রিজ', order: 2, parent: 'appliances' },
   { slug: 'televisions', name: 'Televisions', nameBn: 'টিভি', order: 3, parent: 'appliances' },
-  { slug: 'power', name: 'Power & UPS', nameBn: 'পাওয়ার ও ইউপিএস', image: '/assets/cat-power.png', order: 6, parent: null },
+
+  { slug: 'kitchen-appliances', name: 'Kitchen Appliances', nameBn: 'কিচেন অ্যাপ্লায়েন্স', order: 6, parent: null },
+  { slug: 'rice-cookers', name: 'Rice Cookers', nameBn: 'রাইস কুকার', order: 1, parent: 'kitchen-appliances' },
+  { slug: 'blenders-juicers', name: 'Blenders & Juicers', nameBn: 'ব্লেন্ডার ও জুসার', order: 2, parent: 'kitchen-appliances' },
+  { slug: 'electric-kettles', name: 'Electric Kettles', nameBn: 'ইলেকট্রিক কেটলি', order: 3, parent: 'kitchen-appliances' },
+  { slug: 'microwave-ovens', name: 'Microwave Ovens', nameBn: 'মাইক্রোওভেন', order: 4, parent: 'kitchen-appliances' },
+
+  { slug: 'lifestyle', name: 'LifeStyle', nameBn: 'লাইফস্টাইল', order: 7, parent: null },
+  { slug: 'bags-backpacks', name: 'Bags & Backpacks', nameBn: 'ব্যাগ ও ব্যাকপ্যাক', order: 1, parent: 'lifestyle' },
+  { slug: 'travel-accessories', name: 'Travel Accessories', nameBn: 'ভ্রমণ সামগ্রী', order: 2, parent: 'lifestyle' },
+  { slug: 'desk-accessories', name: 'Desk Accessories', nameBn: 'ডেস্ক অ্যাক্সেসরিজ', order: 3, parent: 'lifestyle' },
+
+  { slug: 'health-beauty', name: 'Health & Beauty', nameBn: 'স্বাস্থ্য ও সৌন্দর্য', order: 8, parent: null },
+  { slug: 'health-devices', name: 'Health Devices', nameBn: 'স্বাস্থ্য সুরক্ষা ডিভাইস', order: 1, parent: 'health-beauty' },
+  { slug: 'personal-care', name: 'Personal Care', nameBn: 'পার্সোনাল কেয়ার', order: 2, parent: 'health-beauty' },
+  { slug: 'beauty-grooming', name: 'Beauty & Grooming', nameBn: 'বিউটি ও গ্রুমিং', order: 3, parent: 'health-beauty' },
+
+  { slug: 'power', name: 'Power & UPS', nameBn: 'পাওয়ার ও ইউপিএস', image: '/assets/cat-power.png', order: 9, parent: null },
   { slug: 'power-banks', name: 'Power Banks', nameBn: 'পাওয়ার ব্যাংক', order: 1, parent: 'power' },
   { slug: 'ups-ips', name: 'UPS / IPS', nameBn: 'ইউপিএস / আইপিএস', order: 2, parent: 'power' },
   { slug: 'chargers', name: 'Chargers', nameBn: 'চার্জার', order: 3, parent: 'power' },
-  { slug: 'phones', name: 'Phones', nameBn: 'ফোন', image: '/assets/cat-phones.png', order: 7, parent: null },
-  { slug: 'smartphones', name: 'Smartphones', nameBn: 'স্মার্টফোন', order: 1, parent: 'phones' },
-  { slug: 'wearables', name: 'Wearables', nameBn: 'ওয়্যারেবল', order: 2, parent: 'phones' },
-  { slug: 'tablets', name: 'Tablets', nameBn: 'ট্যাবলেট', image: '/assets/cat-tablets.png', order: 8, parent: null },
-  { slug: 'gaming', name: 'Gaming', nameBn: 'গেমিং', image: '/assets/cat-gaming.png', order: 9, parent: null },
-  { slug: 'controllers', name: 'Controllers', nameBn: 'কন্ট্রোলার', order: 1, parent: 'gaming' },
-  { slug: 'gaming-headsets', name: 'Gaming Headsets', nameBn: 'গেমিং হেডসেট', order: 2, parent: 'gaming' },
-  { slug: 'accessories', name: 'Accessories', nameBn: 'অ্যাক্সেসরিজ', image: '/assets/cat-accessories.png', order: 10, parent: null },
-  { slug: 'keyboards', name: 'Keyboards', nameBn: 'কীবোর্ড', order: 1, parent: 'accessories' },
-  { slug: 'mice', name: 'Mice', nameBn: 'মাউস', order: 2, parent: 'accessories' },
-  { slug: 'audio', name: 'Audio', nameBn: 'অডিও', order: 3, parent: 'accessories' },
-  { slug: 'networking', name: 'Networking', nameBn: 'নেটওয়ার্কিং', image: '/assets/cat-networking.png', order: 11, parent: null },
-  { slug: 'routers', name: 'Routers', nameBn: 'রাউটার', order: 1, parent: 'networking' },
-  { slug: 'mesh', name: 'Mesh Wi-Fi', nameBn: 'মেশ ওয়াই-ফাই', order: 2, parent: 'networking' },
+
+  { slug: 'laptops', name: 'Laptops & Desktops', nameBn: 'ল্যাপটপ ও ডেস্কটপ', image: '/assets/cat-laptops.png', order: 10, parent: null },
+  { slug: 'consumer-laptops', name: 'Consumer Laptops', nameBn: 'কনজিউমার ল্যাপটপ', order: 1, parent: 'laptops' },
+  { slug: 'business-laptops', name: 'Business Laptops', nameBn: 'বিজনেস ল্যাপটপ', order: 2, parent: 'laptops' },
+  { slug: 'ultrabooks', name: 'Ultrabooks', nameBn: 'আল্ট্রাবুক', order: 3, parent: 'laptops' },
+  { slug: 'gaming-laptops', name: 'Gaming Laptops', nameBn: 'গেমিং ল্যাপটপ', order: 4, parent: 'laptops' },
+  { slug: 'creator-laptops', name: 'Creator Laptops', nameBn: 'ক্রিয়েটর ল্যাপটপ', order: 5, parent: 'laptops' },
+  { slug: 'desktops', name: 'Desktops', nameBn: 'ডেস্কটপ', image: '/assets/cat-desktops.png', order: 6, parent: 'laptops' },
+  { slug: 'mini-pcs', name: 'Mini PCs', nameBn: 'মিনি পিসি', order: 1, parent: 'desktops' },
+  { slug: 'gaming-desktops', name: 'Gaming Desktops', nameBn: 'গেমিং ডেস্কটপ', order: 2, parent: 'desktops' },
+  { slug: 'all-in-one', name: 'All-in-One', nameBn: 'অল-ইন-ওয়ান', order: 3, parent: 'desktops' },
+];
+
+const CATEGORY_CHILDREN = [
+  { parent: 'mobile-accessories', items: [
+    ['phone-cases', 'Phone Cases & Covers', 'ফোন কেস ও কভার'],
+    ['screen-protectors', 'Screen Protectors', 'স্ক্রিন প্রটেক্টর'],
+    ['mobile-chargers', 'Mobile Chargers', 'মোবাইল চার্জার'],
+    ['phone-mounts', 'Phone Stands & Mounts', 'ফোন স্ট্যান্ড ও মাউন্ট'],
+  ] },
+  { parent: 'computer-accessories', items: [
+    ['webcams', 'Webcams', 'ওয়েবক্যাম'],
+    ['laptop-stands', 'Laptop Stands', 'ল্যাপটপ স্ট্যান্ড'],
+    ['cooling-pads', 'Laptop Cooling Pads', 'ল্যাপটপ কুলিং প্যাড'],
+    ['docking-stations', 'Docking Stations & USB Hubs', 'ডকিং স্টেশন ও ইউএসবি হাব'],
+  ] },
+  { parent: 'audio', items: [
+    ['headphones', 'Headphones', 'হেডফোন'],
+    ['earbuds', 'Earbuds', 'ইয়ারবাড'],
+    ['bluetooth-speakers', 'Bluetooth Speakers', 'ব্লুটুথ স্পিকার'],
+    ['microphones', 'Microphones', 'মাইক্রোফোন'],
+  ] },
+  { parent: 'gaming', items: [
+    ['gaming-keyboards', 'Gaming Keyboards', 'গেমিং কীবোর্ড'],
+    ['gaming-mice', 'Gaming Mice', 'গেমিং মাউস'],
+    ['gaming-mousepads', 'Gaming Mouse Pads', 'গেমিং মাউস প্যাড'],
+  ] },
+  { parent: 'cables-adapters-hubs', items: [
+    ['usb-cables', 'USB Cables', 'ইউএসবি কেবল'],
+    ['display-cables', 'Display Cables', 'ডিসপ্লে কেবল'],
+    ['adapters-converters', 'Adapters & Converters', 'অ্যাডাপ্টার ও কনভার্টার'],
+    ['usb-hubs', 'USB Hubs', 'ইউএসবি হাব'],
+  ] },
+  { parent: 'storage-memory', items: [
+    ['usb-flash-drives', 'USB Flash Drives', 'ইউএসবি ফ্ল্যাশ ড্রাইভ'],
+    ['memory-cards', 'Memory Cards', 'মেমোরি কার্ড'],
+    ['portable-ssds', 'Portable SSDs', 'পোর্টেবল এসএসডি'],
+    ['portable-hard-drives', 'Portable Hard Drives', 'পোর্টেবল হার্ড ড্রাইভ'],
+    ['card-readers', 'Card Readers', 'কার্ড রিডার'],
+  ] },
+  { parent: 'smart-gadgets', items: [
+    ['smart-trackers', 'Smart Trackers', 'স্মার্ট ট্র্যাকার'],
+    ['drones', 'Drones', 'ড্রোন'],
+    ['camera-gimbals', 'Camera Gimbals', 'ক্যামেরা গিম্বল'],
+    ['studio-equipment', 'Studio Equipment', 'স্টুডিও সরঞ্জাম'],
+  ] },
+  { parent: 'graphics-cards', items: [
+    ['gaming-graphics-cards', 'Gaming Graphics Cards', 'গেমিং গ্রাফিক্স কার্ড'],
+    ['workstation-graphics-cards', 'Workstation Graphics Cards', 'ওয়ার্কস্টেশন গ্রাফিক্স কার্ড'],
+  ] },
+  { parent: 'processors', items: [
+    ['desktop-processors', 'Desktop Processors', 'ডেস্কটপ প্রসেসর'],
+    ['laptop-processors', 'Laptop Processors', 'ল্যাপটপ প্রসেসর'],
+  ] },
+  { parent: 'memory', items: [
+    ['desktop-memory', 'Desktop Memory Modules', 'ডেস্কটপ মেমোরি মডিউল'],
+    ['laptop-memory', 'Laptop Memory Modules', 'ল্যাপটপ মেমোরি মডিউল'],
+  ] },
+  { parent: 'storage', items: [
+    ['nvme-ssds', 'NVMe SSDs', 'এনভিএমই এসএসডি'],
+    ['sata-ssds', 'SATA SSDs', 'স্যাটা এসএসডি'],
+    ['internal-hard-drives', 'Internal Hard Drives', 'ইন্টারনাল হার্ড ড্রাইভ'],
+  ] },
+  { parent: 'monitors', items: [
+    ['gaming-monitors', 'Gaming Monitors', 'গেমিং মনিটর'],
+    ['professional-monitors', 'Professional Monitors', 'প্রফেশনাল মনিটর'],
+    ['portable-monitors', 'Portable Monitors', 'পোর্টেবল মনিটর'],
+  ] },
+  { parent: 'smartphones', items: [
+    ['android-phones', 'Android Smartphones', 'অ্যান্ড্রয়েড স্মার্টফোন'],
+    ['feature-phones', 'Feature Phones', 'ফিচার ফোন'],
+  ] },
+  { parent: 'wearables', items: [
+    ['smartwatches', 'Smartwatches', 'স্মার্টওয়াচ'],
+    ['fitness-bands', 'Fitness Bands', 'ফিটনেস ব্যান্ড'],
+    ['smart-glasses', 'Smart Glasses', 'স্মার্ট চশমা'],
+  ] },
+  { parent: 'tablets', items: [
+    ['android-tablets', 'Android Tablets', 'অ্যান্ড্রয়েড ট্যাবলেট'],
+    ['windows-tablets', 'Windows Tablets', 'উইন্ডোজ ট্যাবলেট'],
+    ['rugged-tablets', 'Rugged Tablets', 'রাগড ট্যাবলেট'],
+  ] },
+  { parent: 'routers', items: [
+    ['wifi-routers', 'Wi-Fi Routers', 'ওয়াই-ফাই রাউটার'],
+    ['sim-routers', 'SIM Routers', 'সিম রাউটার'],
+    ['enterprise-routers', 'Enterprise Routers', 'এন্টারপ্রাইজ রাউটার'],
+  ] },
+  { parent: 'mesh', items: [
+    ['home-mesh-systems', 'Home Mesh Systems', 'হোম মেশ সিস্টেম'],
+    ['business-mesh-systems', 'Business Mesh Systems', 'বিজনেস মেশ সিস্টেম'],
+  ] },
+  { parent: 'air-conditioners', items: [
+    ['split-air-conditioners', 'Split Air Conditioners', 'স্প্লিট এয়ার কন্ডিশনার'],
+    ['window-air-conditioners', 'Window Air Conditioners', 'উইন্ডো এয়ার কন্ডিশনার'],
+    ['portable-air-conditioners', 'Portable Air Conditioners', 'পোর্টেবল এয়ার কন্ডিশনার'],
+  ] },
+  { parent: 'refrigerators', items: [
+    ['top-freezer-refrigerators', 'Top-Freezer Refrigerators', 'টপ-ফ্রিজার রেফ্রিজারেটর'],
+    ['bottom-freezer-refrigerators', 'Bottom-Freezer Refrigerators', 'বটম-ফ্রিজার রেফ্রিজারেটর'],
+    ['side-by-side-refrigerators', 'Side-by-Side Refrigerators', 'সাইড-বাই-সাইড রেফ্রিজারেটর'],
+  ] },
+  { parent: 'televisions', items: [
+    ['led-tvs', 'LED TVs', 'এলইডি টিভি'],
+    ['qled-tvs', 'QLED TVs', 'কিউএলইডি টিভি'],
+    ['oled-tvs', 'OLED TVs', 'ওএলইডি টিভি'],
+  ] },
+  { parent: 'rice-cookers', items: [
+    ['standard-rice-cookers', 'Standard Rice Cookers', 'স্ট্যান্ডার্ড রাইস কুকার'],
+    ['multi-function-cookers', 'Multi-Function Cookers', 'মাল্টি-ফাংশন কুকার'],
+  ] },
+  { parent: 'blenders-juicers', items: [
+    ['blenders', 'Blenders', 'ব্লেন্ডার'],
+    ['juicers', 'Juicers', 'জুসার'],
+    ['food-processors', 'Food Processors', 'ফুড প্রসেসর'],
+  ] },
+  { parent: 'electric-kettles', items: [
+    ['temperature-control-kettles', 'Temperature-Control Kettles', 'তাপমাত্রা নিয়ন্ত্রণ কেটলি'],
+    ['travel-kettles', 'Travel Kettles', 'ট্রাভেল কেটলি'],
+  ] },
+  { parent: 'microwave-ovens', items: [
+    ['solo-microwave-ovens', 'Solo Microwave Ovens', 'সোলো মাইক্রোওভেন'],
+    ['grill-microwave-ovens', 'Grill Microwave Ovens', 'গ্রিল মাইক্রোওভেন'],
+    ['convection-microwave-ovens', 'Convection Microwave Ovens', 'কনভেকশন মাইক্রোওভেন'],
+  ] },
+  { parent: 'bags-backpacks', items: [
+    ['laptop-bags', 'Laptop Bags', 'ল্যাপটপ ব্যাগ'],
+    ['laptop-backpacks', 'Laptop Backpacks', 'ল্যাপটপ ব্যাকপ্যাক'],
+    ['laptop-sleeves', 'Laptop Sleeves', 'ল্যাপটপ স্লিভ'],
+  ] },
+  { parent: 'travel-accessories', items: [
+    ['luggage-scales', 'Digital Luggage Scales', 'ডিজিটাল লাগেজ স্কেল'],
+    ['travel-organizers', 'Travel Organizers', 'ট্রাভেল অর্গানাইজার'],
+    ['travel-binoculars', 'Travel Binoculars', 'ট্রাভেল বাইনোকুলার'],
+  ] },
+  { parent: 'desk-accessories', items: [
+    ['desk-lamps', 'Desk Lamps', 'ডেস্ক ল্যাম্প'],
+    ['monitor-stands', 'Monitor Stands', 'মনিটর স্ট্যান্ড'],
+    ['desk-organizers', 'Desk Organizers', 'ডেস্ক অর্গানাইজার'],
+  ] },
+  { parent: 'health-devices', items: [
+    ['blood-pressure-monitors', 'Blood Pressure Monitors', 'ব্লাড প্রেসার মনিটর'],
+    ['digital-thermometers', 'Digital Thermometers', 'ডিজিটাল থার্মোমিটার'],
+    ['pulse-oximeters', 'Pulse Oximeters', 'পালস অক্সিমিটার'],
+    ['glucometers', 'Glucometers', 'গ্লুকোমিটার'],
+    ['smart-scales', 'Smart Scales', 'স্মার্ট স্কেল'],
+  ] },
+  { parent: 'personal-care', items: [
+    ['hair-dryers', 'Hair Dryers', 'হেয়ার ড্রায়ার'],
+    ['electric-shavers', 'Electric Shavers', 'ইলেকট্রিক শেভার'],
+    ['hair-trimmers', 'Hair Clippers & Trimmers', 'হেয়ার ক্লিপার ও ট্রিমার'],
+    ['electric-toothbrushes', 'Electric Toothbrushes', 'ইলেকট্রিক টুথব্রাশ'],
+  ] },
+  { parent: 'beauty-grooming', items: [
+    ['hair-styling-tools', 'Hair Styling Tools', 'হেয়ার স্টাইলিং টুলস'],
+    ['facial-cleansing-devices', 'Facial Cleansing Devices', 'ফেসিয়াল ক্লিনজিং ডিভাইস'],
+    ['epilators', 'Epilators', 'এপিলেটর'],
+  ] },
+  { parent: 'power-banks', items: [
+    ['wireless-power-banks', 'Wireless Power Banks', 'ওয়্যারলেস পাওয়ার ব্যাংক'],
+    ['solar-power-banks', 'Solar Power Banks', 'সোলার পাওয়ার ব্যাংক'],
+  ] },
+  { parent: 'ups-ips', items: [
+    ['offline-ups', 'Offline UPS Systems', 'অফলাইন ইউপিএস সিস্টেম'],
+    ['line-interactive-ups', 'Line-Interactive UPS Systems', 'লাইন-ইন্টারঅ্যাকটিভ ইউপিএস সিস্টেম'],
+    ['mini-dc-ups', 'Mini DC UPS Systems', 'মিনি ডিসি ইউপিএস সিস্টেম'],
+  ] },
+  { parent: 'chargers', items: [
+    ['usb-wall-chargers', 'USB Wall Chargers', 'ইউএসবি ওয়াল চার্জার'],
+    ['wireless-chargers', 'Wireless Chargers', 'ওয়্যারলেস চার্জার'],
+    ['car-chargers', 'Car Chargers', 'কার চার্জার'],
+  ] },
+];
+
+const CATEGORIES = [
+  ...ROOT_CATEGORIES,
+  ...CATEGORY_CHILDREN.flatMap(({ parent, items }) =>
+    items.map(([slug, name, nameBn], index) => ({
+      slug,
+      name,
+      nameBn,
+      order: index + 1,
+      parent,
+    })),
+  ),
 ];
 
 /* 40 products. sizePrices/sizeStocks power per-variant pricing; variantLabel

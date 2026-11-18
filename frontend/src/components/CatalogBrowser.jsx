@@ -248,8 +248,10 @@ export default function CatalogBrowser({
   const to = Math.min(total, page * perPage);
   const activeMainCategory = useMemo(() => {
     const selected = new Set(cats);
+    const containsSelection = (category) =>
+      selected.has(category.slug) || (category.children || []).some(containsSelection);
     const root = ROOT_CATS.find((category) =>
-      selected.has(category.slug) || (category.children || []).some((child) => selected.has(child.slug)),
+      containsSelection(category),
     );
     if (root) return isBn && root.nameBn ? root.nameBn : t(root.name);
     const fallback = CAT_OBJS.find((category) => selected.has(category.slug));
@@ -287,6 +289,44 @@ export default function CatalogBrowser({
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
   const categoryIsCollapsed = (slug) => collapsedCats[slug] ?? true;
+  const renderSubcategories = (nodes, depth = 1) => (nodes || []).map((category) => {
+    const label = isBn && category.nameBn ? category.nameBn : t(category.name);
+    const children = category.children || [];
+    const collapsed = categoryIsCollapsed(category.slug);
+    return (
+      <div key={category.slug}>
+        <div className="shop-category-heading">
+          <button
+            data-cat={category.slug}
+            aria-pressed={cats.includes(category.slug)}
+            onClick={() => toggleCat(category.slug)}
+            className={'shop-category-option shop-subcategory-option ' + (cats.includes(category.slug) ? 'is-active' : '')}
+            style={{ paddingLeft: `${depth * 12}px` }}
+          >
+            <span className="shop-check" aria-hidden="true">{cats.includes(category.slug) ? '✓' : ''}</span>
+            {label}
+          </button>
+          {children.length ? (
+            <button
+              type="button"
+              className="shop-category-toggle"
+              aria-label={`${collapsed ? t('Expand') : t('Collapse')} ${label}`}
+              aria-expanded={!collapsed}
+              aria-controls={id + 'Subcats-' + category.slug}
+              onClick={() => setCollapsedCats((current) => ({ ...current, [category.slug]: !collapsed }))}
+            >
+              <span className="font-disp text-xl leading-none" aria-hidden="true">{collapsed ? '+' : '-'}</span>
+            </button>
+          ) : null}
+        </div>
+        {children.length && !collapsed ? (
+          <div id={id + 'Subcats-' + category.slug} className="shop-subcategory-list">
+            {renderSubcategories(children, depth + 1)}
+          </div>
+        ) : null}
+      </div>
+    );
+  });
 
   return (
     <>
@@ -396,18 +436,7 @@ export default function CatalogBrowser({
                 </div>
                 {c.children && c.children.length && !categoryIsCollapsed(c.slug) ? (
                   <div id={id + 'Subcats-' + c.slug} className="shop-subcategory-list">
-                    {c.children.map((sub) => (
-                      <button
-                        key={sub.slug}
-                        data-cat={sub.slug}
-                        aria-pressed={cats.includes(sub.slug)}
-                        onClick={() => toggleCat(sub.slug)}
-                        className={'shop-category-option shop-subcategory-option ' + (cats.includes(sub.slug) ? 'is-active' : '')}
-                      >
-                        <span className="shop-check" aria-hidden="true">{cats.includes(sub.slug) ? '✓' : ''}</span>
-                        {isBn && sub.nameBn ? sub.nameBn : t(sub.name)}
-                      </button>
-                    ))}
+                    {renderSubcategories(c.children)}
                   </div>
                 ) : null}
               </div>

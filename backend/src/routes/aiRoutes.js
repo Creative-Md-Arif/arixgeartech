@@ -3,9 +3,10 @@
    (cost-efficient: LLM endpoints must never be an open tap). */
 const router = require('express').Router();
 const ai = require('../controllers/aiController');
+const { protectOptional } = require('../middleware/auth');
 
 router.get('/config', ai.config);
 router.get('/faqs', ai.faqs);
-router.post('/chat', ai.chat);
+router.post('/chat', protectOptional, ai.chat);
 
 module.exports = router;

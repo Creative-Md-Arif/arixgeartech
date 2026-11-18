@@ -11,10 +11,22 @@ sub-admins need the module granted (Admin → Team).
 |---|---|
 | `GET /products` | server-driven list: `?cat=` (branch-aware subtree) `?brand= &q= &min=&max= &sort= &page= &limit=` + facets (price/badges/sizes/brands); cards carry deal-adjusted prices + `dealBogo` |
 | `GET /products/:slug` | PDP payload + related (leaf-first, branch fill) |
-| `GET /categories` · `/categories/tree` | flat list · nested tree (mega-nav) |
+| `GET /categories` · `/categories/tree` | active flat list and nested tree; each category includes active branch product counts and `showInNavbar` visibility |
 | `GET /brands` · `/brands/:slug` | facet list w/ counts · brand page |
 | `GET /bundles` · `GET /flash-campaigns` · `GET /deals` · `GET /deals/:slug` | live only (windows computed at read time); per-deal product grids |
 | `GET /banners` · `/home-sections` | homepage CMS |
+
+The seeded category tree has a maximum depth of three levels. In `backend/`,
+run `npm run seed:categories` before `npm run seed:category-spec-schemas`;
+both commands upsert/merge and preserve custom categories and existing spec
+fields. Category names were normalized from Bangladesh retailer listings,
+primarily [Star Tech components](https://www.startech.com.bd/component),
+[phones](https://www.startech.com.bd/mobile-phone),
+[networking](https://www.startech.com.bd/networking/router),
+[appliances](https://www.startech.com.bd/appliance),
+[lifestyle](https://www.startech.com.bd/lifestyle),
+[power](https://www.startech.com.bd/power), and
+[laptops/desktops](https://www.startech.com.bd/laptop-notebook).
 
 ## Public — orders & account
 

@@ -6,7 +6,11 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",
+    "test": "node --test",
     "seed": "node src/seed/seed.js",
+    "seed:categories": "node src/scripts/seed-categories.js",
+    "seed:category-spec-schemas": "node src/scripts/seed-category-spec-schemas.js",
+    "seed:accessories-spec-schema": "node src/scripts/seed-accessories-spec-schema.js",
     "seed:home-metadata": "node src/scripts/seed-home-section-metadata.js",
     "migrate:home-combo-config": "node src/scripts/migrate-home-combo-config.js",
     "migrate:community-sections": "node src/scripts/migrate-community-sections.js",

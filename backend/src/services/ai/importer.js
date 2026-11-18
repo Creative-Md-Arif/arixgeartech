@@ -25,6 +25,7 @@
 
 const net = require('net');
 const dns = require('dns').promises;
+const { randomUUID, createHash } = require('crypto');
 const AiImport = require('../../models/AiImport');
 const AiSetting = require('../../models/AiSetting');
 const AiStat = require('../../models/AiStat');
@@ -147,7 +148,8 @@ function jsonLdProducts(html, base) {
   while ((m = re.exec(html))) {
     try {
       const data = JSON.parse(m[1].trim().replace(/[\u0000-\u001f]/g, ' '));
-      const nodes = Array.isArray(data) ? data : data['@graph'] || [data];
+      const graph = data && data['@graph'];
+      const nodes = Array.isArray(data) ? data : Array.isArray(graph) ? graph : graph ? [graph] : [data];
       for (const n of nodes) {
         const t = n && (n['@type'] || '');
         const types = Array.isArray(t) ? t : [t];
@@ -168,11 +170,23 @@ function metaContent(html, key) {
 function decodeEntities(s) {
   return String(s || '')
     .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"').replace(/&#0?39;/g, "'").replace(/&nbsp;/g, ' ');
+    .replace(/&quot;/g, '"').replace(/&#0?39;/g, "'").replace(/&nbsp;/g, ' ')
+    .replace(/&#x([0-9a-f]+);?/gi, (_m, hex) => {
+      const code = parseInt(hex, 16);
+      return code <= 0x10ffff ? String.fromCodePoint(code) : ' ';
+    })
+    .replace(/&#(\d+);?/g, (_m, decimal) => {
+      const code = Number(decimal);
+      return code <= 0x10ffff ? String.fromCodePoint(code) : ' ';
+    });
 }
 
 function stripTags(s) {
-  return decodeEntities(String(s || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim());
+  return decodeEntities(String(s || '')
+    .replace(/<(script|style|noscript)\b[^>]*>[\s\S]*?<\/\1>/gi, ' ')
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim());
 }
 
 function extractPrice(text) {
@@ -204,31 +218,153 @@ function extractComparePrice(html, ld, currentPrice) {
   return candidates.length ? Math.max(...candidates) : null;
 }
 
-function extractSpecs(html, ld = {}) {
+function extractSpecs(html, ld = {}, products = []) {
+  const source = String(html || '');
   const specs = [];
   const add = (k, v) => {
-    const key = stripTags(k); const value = stripTags(v);
-    if (key && value && key.length < 80 && value.length < 300 && !specs.some((s) => s.k.toLowerCase() === key.toLowerCase())) specs.push({ k: key, v: value });
+    const key = stripTags(k).replace(/[:：]\s*$/, '').trim();
+    const value = stripTags(v).replace(/^[：:]\s*/, '').trim();
+    if (!key || !value || key.length > 80 || value.length > 300) return;
+    if (/^(?:(?:technical )?(?:specifications?|details?)|attributes?|features?|name|value|select|choose)$/i.test(key)) return;
+    if (/^(?:-|—|n\/?a|not specified|none|null)$/i.test(value)) return;
+    if (!specs.some((s) => s.k.toLowerCase() === key.toLowerCase())) specs.push({ k: key, v: value });
   };
-  for (const prop of [].concat(ld.additionalProperty || [])) {
-    if (prop && (prop.name || prop.propertyID) && prop.value != null) add(prop.name || prop.propertyID, prop.value);
+  const textValue = (value) => {
+    if (Array.isArray(value)) return value.map(textValue).filter(Boolean).join(', ');
+    if (value && typeof value === 'object') {
+      return textValue(value.name ?? value.value ?? value.valueName ?? value.text ?? '');
+    }
+    return value == null ? '' : String(value);
+  };
+  const addStructured = (value, depth = 0) => {
+    if (depth > 6 || value == null) return;
+    if (Array.isArray(value)) {
+      value.forEach((item) => addStructured(item, depth + 1));
+      return;
+    }
+    if (typeof value === 'string') {
+      const pair = value.match(/^([^:：]{2,70})\s*[:：]\s*(.{1,300})$/);
+      if (pair) add(pair[1], pair[2]);
+      return;
+    }
+    if (typeof value !== 'object') return;
+    const key = value.name || value.propertyID || value.key || value.label || value.attribute || value.title;
+    const rawValue = value.value ?? value.valueText ?? value.valueName ?? value.text;
+    if (key && rawValue != null) {
+      const unit = value.unitText || value.unit || '';
+      const parsedValue = textValue(rawValue);
+      add(key, unit && parsedValue && !parsedValue.toLowerCase().includes(String(unit).toLowerCase())
+        ? `${parsedValue} ${unit}`
+        : parsedValue);
+      return;
+    }
+    for (const [k, child] of Object.entries(value)) {
+      if (child == null || typeof child === 'boolean') continue;
+      if (typeof child !== 'object') add(k, child);
+      else if (child.value != null) {
+        const unit = child.unitText || child.unit || '';
+        const parsedValue = textValue(child.value);
+        add(k, unit && parsedValue && !parsedValue.toLowerCase().includes(String(unit).toLowerCase())
+          ? `${parsedValue} ${unit}`
+          : parsedValue);
+      }
+      else addStructured(child, depth + 1);
+    }
+  };
+  const visitStructured = (value, depth = 0) => {
+    if (!value || typeof value !== 'object' || depth > 10) return;
+    if (Array.isArray(value)) {
+      value.forEach((item) => visitStructured(item, depth + 1));
+      return;
+    }
+    for (const [key, child] of Object.entries(value)) {
+      if (/(?:spec|technicaldetail|productattribute|additionalproperty)/i.test(key)) addStructured(child);
+      else if (child && typeof child === 'object') visitStructured(child, depth + 1);
+    }
+  };
+  for (const product of [ld, ...products]) {
+    if (!product || typeof product !== 'object') continue;
+    addStructured(product.additionalProperty);
+    addStructured(product.specification);
+    addStructured(product.specifications);
+    addStructured(product.specs);
+    addStructured(product.technicalDetails);
+    addStructured(product.productAttributes);
   }
-  /* table rows */
-  const trRe = /<tr[^>]*>([\s\S]*?)<\/tr>/gi;
+  const scriptRe = /<script\b([^>]*)>([\s\S]*?)<\/script>/gi;
+  let script;
+  while ((script = scriptRe.exec(source))) {
+    if (!/application\/(?:ld\+)?json|__NEXT_DATA__/i.test(script[1])) continue;
+    try { visitStructured(JSON.parse(script[2].trim())); } catch (_e) { /* non-JSON script — skip */ }
+  }
+
+  /* Key/value rows used by WooCommerce, Magento, and common vendor tables. */
+  const trRe = /<tr\b[^>]*>([\s\S]*?)<\/tr>/gi;
   let m;
-  while ((m = trRe.exec(html)) && specs.length < 30) {
-    const cells = [...m[1].matchAll(/<t[dh][^>]*>([\s\S]*?)<\/t[dh]>/gi)].map((c) => stripTags(c[1]));
-    if (cells.length >= 2) add(cells[0], cells[1]);
+  while ((m = trRe.exec(source)) && specs.length < 60) {
+    const cells = [...m[1].matchAll(/<(t[dh])\b([^>]*)>([\s\S]*?)<\/t[dh]>/gi)];
+    for (const cell of cells) {
+      const label = (cell[2].match(/\bdata-(?:label|title|spec-name)=["']([^"']+)["']/i) || [])[1];
+      if (label) add(label, cell[3]);
+    }
+    if (cells.length >= 2) add(cells[0][3], cells[1][3]);
   }
-  /* dl / dt / dd */
-  if (specs.length < 4) {
-    const dlRe = /<dt[^>]*>([\s\S]*?)<\/dt>\s*<dd[^>]*>([\s\S]*?)<\/dd>/gi;
-    while ((m = dlRe.exec(html)) && specs.length < 30) {
-      const k = stripTags(m[1]); const v = stripTags(m[2]);
-      add(k, v);
+
+  /* Definition lists often wrap labels and values in extra markup. */
+  const dlRe = /<dt\b[^>]*>([\s\S]*?)<\/dt>[\s\S]{0,300}?<dd\b[^>]*>([\s\S]*?)<\/dd>/gi;
+  while ((m = dlRe.exec(source)) && specs.length < 60) add(m[1], m[2]);
+
+  /* Responsive product pages encode each attribute as a labelled cell. */
+  const attrRe = /<([a-z][\w:-]*)\b([^>]*?)>/gi;
+  const lowerSource = source.toLowerCase();
+  let tag;
+  while ((tag = attrRe.exec(source)) && specs.length < 60) {
+    const attrs = tag[2];
+    const dataKey = (attrs.match(/\bdata-(?:spec-name|attribute|label)=["']([^"']+)["']/i) || [])[1];
+    const dataValue = (attrs.match(/\bdata-(?:spec-value|value)=["']([^"']+)["']/i) || [])[1];
+    if (dataKey && dataValue) add(dataKey, dataValue);
+    const itemprop = (attrs.match(/\bitemprop=["']([^"']+)["']/i) || [])[1];
+    if (itemprop === 'additionalProperty') {
+      const close = lowerSource.indexOf(`</${tag[1].toLowerCase()}`, attrRe.lastIndex);
+      if (close >= 0) {
+        const inner = source.slice(attrRe.lastIndex, close);
+        const propertyName = (inner.match(/itemprop=["'](?:name|propertyID)["'][^>]*>([\s\S]*?)<\/[^>]+>/i) || [])[1];
+        const propertyValue = (inner.match(/itemprop=["']value["'][^>]*>([\s\S]*?)<\/[^>]+>/i) || [])[1];
+        if (propertyName && propertyValue) add(propertyName, propertyValue);
+      }
+    }
+    const className = (attrs.match(/\bclass=["']([^"']+)["']/i) || [])[1] || '';
+    if (!/(?:spec|technical|attribute)/i.test(className)) continue;
+    const close = lowerSource.indexOf(`</${tag[1].toLowerCase()}`, attrRe.lastIndex);
+    if (close < 0) continue;
+    const inner = source.slice(attrRe.lastIndex, close);
+    const children = [...inner.matchAll(/<(span|strong|b|label|dt|dd|th|td)\b[^>]*>([\s\S]*?)<\/\1>/gi)]
+      .map((child) => stripTags(child[2])).filter(Boolean);
+    if (children.length >= 2) add(children[0], children[1]);
+    else {
+      const line = stripTags(inner);
+      const pair = line.match(/^([^:：]{2,70})\s*[:：]\s*(.{1,300})$/);
+      if (pair) add(pair[1], pair[2]);
     }
   }
-  return specs.slice(0, 18);
+
+  const listRe = /<(ul|ol)\b([^>]*)>([\s\S]*?)<\/\1>/gi;
+  while ((m = listRe.exec(source)) && specs.length < 60) {
+    if (!/(?:spec|technical|attribute)/i.test(m[2])) continue;
+    const itemRe = /<li\b[^>]*>([\s\S]*?)<\/li>/gi;
+    let item;
+    while ((item = itemRe.exec(m[3])) && specs.length < 60) {
+      const boldLabel = item[1].match(/<(strong|b)\b[^>]*>([\s\S]*?)<\/\1>\s*([\s\S]*)/i);
+      if (boldLabel) add(boldLabel[2], boldLabel[3]);
+      else {
+        const line = stripTags(item[1]);
+        const pair = line.match(/^([^:：]{2,70})\s*[:：]\s*(.{1,300})$/);
+        if (pair) add(pair[1], pair[2]);
+      }
+    }
+  }
+
+  return specs.slice(0, 30);
 }
 
 /* Step 5 — KEY FEATURES extraction: product-page bullet lists (<ul>/<ol> <li>).
@@ -268,7 +404,8 @@ function extractFeatures(html, evidence = '') {
 }
 
 function extract(html, pageUrl) {
-  const ld = jsonLdProducts(html, pageUrl)[0] || {};
+  const products = jsonLdProducts(html, pageUrl);
+  const ld = products.find((product) => product.name) || products[0] || {};
   const offers = Array.isArray(ld.offers) ? (ld.offers[0] || {}) : (ld.offers || {});
   const ldImages = [].concat(ld.image || []).filter(Boolean).map((i) => (typeof i === 'string' ? i : i.url)).filter(Boolean);
 
@@ -277,7 +414,7 @@ function extract(html, pageUrl) {
   const docTitle = (html.match(/<title[^>]*>([\s\S]*?)<\/title>/i) || [])[1];
   const name = stripTags(ld.name || ogTitle || h1 || decodeEntities(docTitle || ''))
     .replace(/\s*[-|]\s*(?:arixgear|startech|ryans|star ?tech|buy[^|]*)$/i, '')
-    .slice(0, 220) || 'Untitled import';
+    .slice(0, 220);
   const evidence = `${name} ${stripTags(ld.description || '')} ${JSON.stringify(ld)}`;
 
   const isImageUrl = (u) => /^https?:/i.test(u) && /\.(jpe?g|png|webp|gif|avif)(?:[?#]|$)/i.test(u) && !/sprite|logo|icon|placeholder|avatar|banner/i.test(u);
@@ -310,18 +447,29 @@ function extract(html, pageUrl) {
 
   const ogDesc = metaContent(html, 'og:description') || metaContent(html, 'description');
   const bodyText = stripTags(html).slice(0, 20000);
+  const brandValue = Array.isArray(ld.brand) ? ld.brand[0] : ld.brand;
+  const brandGuess = stripTags(
+    brandValue && typeof brandValue === 'object' ? brandValue.name || brandValue.value : brandValue,
+  ) || metaContent(html, 'product:brand') || metaContent(html, 'product:manufacturer') ||
+    metaContent(html, 'og:brand') || metaContent(html, 'brand');
+  const categoryValue = Array.isArray(ld.category) ? ld.category.join(', ') : ld.category;
+  const categoryGuess = stripTags(categoryValue && typeof categoryValue === 'object'
+    ? categoryValue.name || categoryValue.value
+    : categoryValue) || metaContent(html, 'product:category') ||
+    metaContent(html, 'product:category_name') || metaContent(html, 'og:category') ||
+    metaContent(html, 'article:section');
 
   return {
     name,
-    brandGuess: stripTags(ld.brand && (ld.brand.name || ld.brand)) || metaContent(html, 'product:brand') || '',
-    categoryGuess: stripTags(ld.category || metaContent(html, 'product:category') || ''),
+    brandGuess,
+    categoryGuess,
     price: parseFloat(offers.price || metaContent(html, 'product:price:amount')) || extractPrice(bodyText),
     comparePrice: extractComparePrice(html, ld, parseFloat(offers.price || metaContent(html, 'product:price:amount')) || extractPrice(bodyText)),
     currency: offers.priceCurrency || metaContent(html, 'product:price:currency') || 'BDT',
     availability: /instock|in[_-]?stock/i.test(String(offers.availability || '')) ? 'in_stock' : (/preorder/i.test(String(offers.availability || '')) ? 'preorder' : ''),
-    sku: String(ld.sku || metaContent(html, 'product:original_price:amount') || '').slice(0, 60),
+    sku: String(ld.sku || metaContent(html, 'product:sku') || metaContent(html, 'sku') || '').slice(0, 60),
     shortDesc: (stripTags(ld.description || ogDesc) || '').slice(0, 600),
-    specs: extractSpecs(html, ld),
+    specs: extractSpecs(html, ld, products),
     features: extractFeatures(html, evidence), // product-specific bullet lists
     images: [...new Set([...ldImages, ...imgs])].slice(0, 12),
     ldPriceCurrencyOk: !offers.price || String(offers.priceCurrency || 'BDT').toUpperCase() === 'BDT',
@@ -331,14 +479,15 @@ function extract(html, pageUrl) {
 /* ---------- 4. rewrite ---------- */
 function templateRewrite(ex) {
   const specLines = (ex.specs || []).slice(0, 8).map((s) => `${s.k}: ${s.v}`).join(' · ');
+  const name = String(ex.name || '').trim();
+  const shortDesc = String(ex.shortDesc || '').trim();
   const descParts = [];
-  if (ex.shortDesc) descParts.push(ex.shortDesc);
+  if (shortDesc) descParts.push(shortDesc);
   if (specLines) descParts.push(`Key specifications — ${specLines}.`);
-  descParts.push(`Imported and verified by the ArixGear team. Warranty and after-sales support handled by ArixGear service centers across Bangladesh.`);
   return {
-    name: ex.name,
+    name,
     nameBn: '',
-    shortDesc: ex.shortDesc || `${ex.name} — available at ArixGear.`,
+    shortDesc,
     shortDescBn: '',
     description: descParts.join('\n\n').slice(0, 4000),
     descriptionBn: '',
@@ -347,21 +496,56 @@ function templateRewrite(ex) {
     features: ex.features || [], // Step 5 — bullets ride through verbatim
     featuresBn: [],
     seo: {
-      metaTitle: `${ex.name} — Price in Bangladesh | ArixGear`.slice(0, 200),
-      metaDescription: (ex.shortDesc || `${ex.name} at the best price in Bangladesh. Genuine product, fast delivery, ArixGear warranty support.`).slice(0, 300),
-      metaKeywords: [ex.name, ex.brandGuess, 'arixgear', 'price in bangladesh'].filter(Boolean).join(', ').slice(0, 500),
+      metaTitle: name ? `${name} | ArixGear`.slice(0, 200) : '',
+      metaDescription: shortDesc.slice(0, 300),
+      metaKeywords: [name, ex.brandGuess].filter(Boolean).join(', ').slice(0, 500),
     },
     source: 'template',
   };
 }
 
-async function aiRewrite(ex) {
+async function aiRewrite(ex, catalog = {}) {
+  const responseSchema = {
+    type: 'OBJECT',
+    properties: {
+      name: { type: 'STRING' },
+      nameBn: { type: 'STRING' },
+      shortDesc: { type: 'STRING' },
+      shortDescBn: { type: 'STRING' },
+      description: { type: 'STRING' },
+      descriptionBn: { type: 'STRING' },
+      specs: { type: 'ARRAY', items: { type: 'OBJECT', properties: { k: { type: 'STRING' }, v: { type: 'STRING' } }, required: ['k', 'v'] } },
+      specsBn: { type: 'ARRAY', items: { type: 'OBJECT', properties: { k: { type: 'STRING' }, v: { type: 'STRING' } }, required: ['k', 'v'] } },
+      features: { type: 'ARRAY', items: { type: 'STRING' } },
+      featuresBn: { type: 'ARRAY', items: { type: 'STRING' } },
+      categorySlug: { type: 'STRING' },
+      categoryConfidence: { type: 'NUMBER' },
+      brandSlug: { type: 'STRING' },
+      brandConfidence: { type: 'NUMBER' },
+      seo: {
+        type: 'OBJECT',
+        properties: {
+          metaTitle: { type: 'STRING' },
+          metaDescription: { type: 'STRING' },
+          metaKeywords: { type: 'STRING' },
+        },
+      },
+    },
+    required: ['name'],
+  };
   const facts = {
     extractedName: ex.name, brand: ex.brandGuess, price: ex.price, currency: ex.currency,
     sourceDescription: (ex.shortDesc || '').slice(0, 1200),
     specifications: (ex.specs || []).slice(0, 14),
     keyFeatures: (ex.features || []).slice(0, 8), // Step 5
   };
+  const categories = (catalog.categories || []).slice(0, 250).map((c) => ({
+    slug: c.slug,
+    name: c.name,
+    nameBn: c.nameBn || '',
+    path: (c.path || []).join(' > '),
+  }));
+  const brands = (catalog.brands || []).slice(0, 150).map((b) => ({ slug: b.slug, name: b.name }));
   const out = await provider.complete({
     system: [
       'You are the SEO copywriter for arixgear.tech, a Bangladeshi tech & gadget store (BDT ৳).',
@@ -369,38 +553,58 @@ async function aiRewrite(ex) {
       'Hard rules: use ONLY facts present in the raw data — never invent specs, numbers or features;',
       'do not mention the source website; do not copy the source description verbatim — rephrase;',
       'write natural, professional English AND natural Bangla (Bengali script).',
-      'Return STRICT JSON only: {"name","nameBn","shortDesc","shortDescBn","description","descriptionBn",',
-      '"specs":[{"k","v"}],"specsBn":[{"k","v"}],"features":["..."],"featuresBn":["..."],"seo":{"metaTitle","metaDescription","metaKeywords"}}',
+      'For category and brand detection, choose only an exact slug from the supplied catalogs; use an empty string when uncertain.',
+      'Choose the deepest applicable existing category. Do not create categories or brands.',
+      'Return categoryConfidence and brandConfidence as numbers from 0 to 1; keep them low when evidence is weak.',
+      'Return STRICT JSON only, matching this valid JSON shape: {"name":"...","nameBn":"...","shortDesc":"...","shortDescBn":"...","description":"...","descriptionBn":"...",',
+      '"specs":[{"k":"...","v":"..."}],"specsBn":[{"k":"...","v":"..."}],"features":["..."],"featuresBn":["..."],',
+      '"categorySlug":"...","categoryConfidence":0,"brandSlug":"...","brandConfidence":0,',
+      '"seo":{"metaTitle":"...","metaDescription":"...","metaKeywords":"..."}}',
     ].join(' '),
-    messages: [{ role: 'user', content: 'RAW PRODUCT DATA:\n' + JSON.stringify(facts, null, 1) }],
+    messages: [{
+      role: 'user',
+      content: 'RAW PRODUCT DATA AND ALLOWED CATALOG VALUES:\n' + JSON.stringify({ facts, categories, brands }, null, 1),
+    }],
     json: true,
+    responseSchema,
     temperature: 0.5,
     maxTokens: 1600,
   });
   const j = provider.parseJsonLoose(out.text);
   if (!j || !j.name) throw new Error('AI rewrite returned unusable JSON');
-  const arr = (x) => (Array.isArray(x) ? x.filter((s) => s && s.k && s.v).map((s) => ({ k: String(s.k).slice(0, 80), v: String(s.v).slice(0, 200) })).slice(0, 18) : []);
+  const category = validateCatalogGuess(j.categorySlug, j.categoryConfidence, categories);
+  const brand = validateCatalogGuess(j.brandSlug, j.brandConfidence, brands);
   const strArr = (x) => (Array.isArray(x) ? x.map((s) => String(s || '').trim().slice(0, 300)).filter(Boolean).slice(0, 12) : []);
   return {
-    name: String(j.name).slice(0, 220),
-    nameBn: String(j.nameBn || '').slice(0, 220),
-    shortDesc: String(j.shortDesc || '').slice(0, 500),
-    shortDescBn: String(j.shortDescBn || '').slice(0, 500),
-    description: String(j.description || '').slice(0, 6000),
-    descriptionBn: String(j.descriptionBn || '').slice(0, 6000),
-    specs: arr(j.specs),
-    specsBn: arr(j.specsBn),
-    /* Raw extracted bullets are the source of truth for product features;
-       the model may rewrite copy, but must not invent or mix feature lists. */
-    features: (ex.features || []).slice(0, 12),
-    featuresBn: strArr(j.featuresBn).slice(0, (ex.features || []).length),
-    seo: {
-      metaTitle: String(j.seo?.metaTitle || '').slice(0, 200),
-      metaDescription: String(j.seo?.metaDescription || '').slice(0, 300),
-      metaKeywords: String(j.seo?.metaKeywords || '').slice(0, 500),
+    content: {
+      name: String(j.name).slice(0, 220),
+      nameBn: String(j.nameBn || '').slice(0, 220),
+      shortDesc: String(j.shortDesc || '').slice(0, 500),
+      shortDescBn: String(j.shortDescBn || '').slice(0, 500),
+      description: String(j.description || '').slice(0, 6000),
+      descriptionBn: String(j.descriptionBn || '').slice(0, 6000),
+      specs: (ex.specs || []).slice(0, 30).map((s) => ({ k: String(s.k).slice(0, 80), v: String(s.v).slice(0, 300) })),
+      specsBn: [],
+      /* Raw extracted bullets are the source of truth for product features;
+         the model may rewrite copy, but must not invent or mix feature lists. */
+      features: (ex.features || []).slice(0, 12),
+      featuresBn: strArr(j.featuresBn).slice(0, (ex.features || []).length),
+      seo: {
+        metaTitle: String(j.seo?.metaTitle || '').slice(0, 200),
+        metaDescription: String(j.seo?.metaDescription || '').slice(0, 300),
+        metaKeywords: String(j.seo?.metaKeywords || '').slice(0, 500),
+      },
+      source: 'ai',
     },
-    source: 'ai',
-    _usage: { promptTokens: out.promptTokens, completionTokens: out.completionTokens },
+    detection: {
+      categorySlug: category.slug,
+      categoryConfidence: category.confidence,
+      brandSlug: brand.slug,
+      brandConfidence: brand.confidence,
+      provider: out.provider || 'ai',
+      model: out.model || '',
+    },
+    usage: { promptTokens: out.promptTokens, completionTokens: out.completionTokens },
   };
 }
 
@@ -468,37 +672,155 @@ const { auditSchemaMutation } = require('../specAudit'); // Step 6 — AI auto-c
 const mongoose = require('mongoose');
 
 /* ---------- category / brand guessing ---------- */
-async function guessCategory(ex) {
-  const hay = `${ex.name} ${ex.shortDesc}`.toLowerCase();
-  const cats = await Category.find({}).select('name nameBn slug path').lean();
-  let best = null; let bestScore = 0;
-  for (const c of cats) {
-    const words = String(c.slug).split('-');
-    let s = 0;
-    for (const w of words) if (w.length > 2 && hay.includes(w)) s += 2;
-    if (c.name && hay.includes(String(c.name).toLowerCase())) s += 2;
-    if (s > bestScore) { bestScore = s; best = c; }
-  }
-  return best && bestScore >= 2 ? best.slug : slugify(ex.categoryGuess || '');
+const DETECT_STOP_WORDS = new Set(['and', 'for', 'the', 'with', 'from', 'new', 'product', 'series', 'model', 'price', 'official']);
+
+function searchText(value) {
+  return String(value || '')
+    .toLowerCase()
+    .replace(/&/g, ' and ')
+    .replace(/[^a-z0-9\u0980-\u09ff]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
-async function guessBrand(ex) {
-  const name = String(ex.brandGuess || ex.name || '').toLowerCase();
-  if (!name) return '';
-  const brands = await Brand.find({}).select('name slug').lean();
-  for (const b of brands) if (name.includes(String(b.name).toLowerCase())) return b.slug;
-  return slugify(ex.brandGuess || '');
+function searchTokens(value) {
+  return searchText(value).split(' ').filter(Boolean).map((word) => {
+    if (word.length > 4 && word.endsWith('ies')) return word.slice(0, -3) + 'y';
+    if (word.length > 4 && word.endsWith('s')) return word.slice(0, -1);
+    return word;
+  });
+}
+
+function validateCatalogGuess(value, rawConfidence, catalog) {
+  const confidence = Number(rawConfidence);
+  const slug = typeof value === 'string' ? value.trim() : '';
+  if (!slug || !catalog.some((item) => item.slug === slug) || !Number.isFinite(confidence) || confidence < 0.6 || confidence > 1) {
+    return { slug: '', confidence: 0 };
+  }
+  return { slug, confidence };
+}
+
+function guessCategory(ex, categories = []) {
+  const source = [
+    ex.name,
+    ex.shortDesc,
+    ex.categoryGuess,
+    ...(ex.specs || []).flatMap((s) => [s.k, s.v]),
+    ...(ex.features || []),
+  ].filter(Boolean).join(' ');
+  const sourceText = searchText(source);
+  const sourceTokens = new Set(searchTokens(source));
+  const hint = searchText(ex.categoryGuess);
+  let best = null;
+  let bestScore = 0;
+  let bestDepth = -1;
+  let bestExactHint = false;
+  let bestPhraseMatch = false;
+
+  for (const category of categories) {
+    const ownValues = [category.slug, category.name, category.nameBn].filter(Boolean);
+    const ownText = ownValues.map(searchText);
+    const ownTokens = new Set(ownValues.flatMap(searchTokens).filter((w) => w.length > 2 && !DETECT_STOP_WORDS.has(w)));
+    let score = 0;
+    for (const word of ownTokens) {
+      if (sourceTokens.has(word)) score += word.length >= 5 ? 1.5 : 1;
+    }
+
+    const exactHint = !!hint && ownText.some((value) => value === hint || value.replace(/\s+/g, '-') === hint.replace(/\s+/g, '-'));
+    const phraseMatch = ownText.some((value) => value.length >= 4 && sourceText.includes(value));
+    if (exactHint) score += 10;
+    else if (phraseMatch) score += 3;
+
+    const depth = Array.isArray(category.path) ? category.path.length : 0;
+    score += Math.min(depth, 4) * 0.05;
+    if (score > bestScore || (score === bestScore && depth > bestDepth)) {
+      best = category;
+      bestScore = score;
+      bestDepth = depth;
+      bestExactHint = exactHint;
+      bestPhraseMatch = phraseMatch;
+    }
+  }
+
+  if (!best || bestScore < 1.5) return { slug: '', confidence: 0 };
+  const confidence = bestExactHint ? 0.98 : bestPhraseMatch ? 0.82 : bestScore >= 4 ? 0.72 : 0.58;
+  return { slug: best.slug, confidence };
+}
+
+function guessBrand(ex, brands = []) {
+  const explicit = searchText(ex.brandGuess);
+  const productTokens = new Set(searchTokens(`${ex.name || ''} ${ex.shortDesc || ''}`));
+  const candidates = [...brands].sort((a, b) => String(b.name || '').length - String(a.name || '').length);
+  for (const brand of candidates) {
+    const name = searchText(brand.name);
+    const slug = searchText(brand.slug);
+    const tokens = searchTokens(name).filter((word) => word.length > 1);
+    const explicitMatch = explicit && (explicit === name || explicit === slug || explicit.includes(name));
+    const titleMatch = tokens.length && tokens.every((word) => productTokens.has(word));
+    if (explicitMatch || titleMatch) {
+      return { slug: brand.slug, id: brand._id, confidence: explicitMatch ? 0.96 : 0.82 };
+    }
+  }
+  return { slug: '', id: null, confidence: 0 };
+}
+
+function catalogSlug(value, prefix) {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  return slugify(raw) || `${prefix}-${createHash('sha1').update(raw.toLowerCase()).digest('hex').slice(0, 8)}`;
+}
+
+function resolveImportDetection(ex, ruleCategory, ruleBrand, ai = {}) {
+  const categoryFromAi = String(ai.categorySlug || '').trim();
+  const brandFromAi = String(ai.brandSlug || '').trim();
+  const categorySlug = categoryFromAi || ruleCategory.slug || catalogSlug(ex.categoryGuess, 'category');
+  const brandSlug = brandFromAi || ruleBrand.slug || catalogSlug(ex.brandGuess, 'brand');
+  return {
+    categorySlug,
+    categoryConfidence: categoryFromAi ? ai.categoryConfidence : ruleCategory.slug ? ruleCategory.confidence : 0,
+    categorySource: categoryFromAi ? (ai.provider || 'ai') : ruleCategory.slug ? 'rules' : categorySlug ? 'source' : 'none',
+    brandSlug,
+    brandConfidence: brandFromAi ? ai.brandConfidence : ruleBrand.slug ? ruleBrand.confidence : 0,
+    brandSource: brandFromAi ? (ai.provider || 'ai') : ruleBrand.slug ? 'rules' : brandSlug ? 'source' : 'none',
+    provider: ai.provider || 'rules',
+    model: ai.model || '',
+  };
 }
 
 const titleFromSlug = (value) => String(value || '').split('-').filter(Boolean).map((x) => x.charAt(0).toUpperCase() + x.slice(1)).join(' ');
 
-async function ensureImportCategory(slug, label) {
-  const clean = slugify(slug || label);
+async function ensureImportCategory(slug, label, parentSlug = '') {
+  const clean = catalogSlug(slug || label, 'category');
   if (!clean) return { categoryRef: null, categoryPath: [] };
   let doc = await Category.findOne({ slug: clean });
   if (!doc) {
+    let parent = null;
+    const cleanParent = catalogSlug(parentSlug, 'category');
+    if (cleanParent) {
+      parent = await Category.findOne({ slug: cleanParent });
+      if (!parent) {
+        const error = new Error('Selected parent category no longer exists');
+        error.status = 400;
+        throw error;
+      }
+      if (parent.slug === clean) {
+        const error = new Error('A category cannot be its own parent');
+        error.status = 400;
+        throw error;
+      }
+    }
+    const parentPath = parent
+      ? (parent.path && parent.path.length ? parent.path : [parent.slug])
+      : [];
     try {
-      doc = await Category.create({ name: String(label || titleFromSlug(clean)).slice(0, 80), slug: clean, parent: null, path: [clean], active: true, order: 999 });
+      doc = await Category.create({
+        name: String(label || titleFromSlug(clean)).trim().slice(0, 80),
+        slug: clean,
+        parent: parent ? parent._id : null,
+        path: [...parentPath, clean],
+        active: true,
+        order: 999,
+      });
     } catch (e) {
       doc = await Category.findOne({ slug: clean });
       if (!doc) throw e;
@@ -510,7 +832,7 @@ async function ensureImportCategory(slug, label) {
 async function ensureImportBrand(value, fallbackName) {
   const raw = String(value || '').trim();
   if (/^[a-f\d]{24}$/i.test(raw)) return raw;
-  const clean = slugify(raw || fallbackName);
+  const clean = catalogSlug(raw || fallbackName, 'brand');
   if (!clean) return null;
   let doc = await Brand.findOne({ slug: clean });
   if (!doc) {
@@ -524,80 +846,190 @@ async function ensureImportBrand(value, fallbackName) {
   return doc._id;
 }
 
+function selectedBrandSource(edits, doc) {
+  if (edits.brandId !== undefined) {
+    if (edits.brandId === 'none' || !edits.brandId) return '';
+    if (edits.brandId === 'create') return String(edits.brandName || doc.brandName || doc.extracted?.brandGuess || '').trim();
+    return edits.brandId;
+  }
+  if (edits.brandName !== undefined) return String(edits.brandName || '').trim();
+  return doc.brand || doc.brandName || doc.brandGuessSlug || '';
+}
+
 /* ---------- queue ---------- */
-const processing = new Set();
+const IMPORT_STALE_MS = 10 * 60 * 1000;
+const processing = new Map();
+let recoveringPending = false;
 
 async function processImport(id) {
-  if (processing.has(String(id))) return;
-  processing.add(String(id));
+  const key = String(id);
+  const activeRun = processing.get(key);
+  if (activeRun && Date.now() - activeRun.startedAt < IMPORT_STALE_MS) return;
+  const runToken = randomUUID();
+  processing.set(key, { token: runToken, startedAt: Date.now() });
   const started = Date.now();
   let usage = { promptTokens: 0, completionTokens: 0 };
   let metaProvider = 'template';
+  let claimed = false;
+  const persist = async (fields, finish = false) => {
+    const update = { $set: fields };
+    if (finish) update.$unset = { processingToken: 1 };
+    const result = await AiImport.updateOne(
+      { _id: id, processingToken: runToken },
+      update,
+    );
+    if (result.matchedCount !== 1) {
+      throw new Error('Import run was superseded; its result was discarded');
+    }
+    return result;
+  };
   try {
-    const doc = await AiImport.findById(id);
-    if (!doc || ['imported', 'rejected'].includes(doc.status)) return;
-    doc.status = 'processing';
-    doc.progress = 10;
-    doc.error = '';
-    await doc.save();
+    const doc = await AiImport.findOneAndUpdate(
+      { _id: id, status: 'pending' },
+      {
+        $set: {
+          status: 'processing',
+          progress: 10,
+          error: '',
+          processingToken: runToken,
+        },
+      },
+      { new: true },
+    );
+    if (!doc) return;
+    claimed = true;
 
     await assertFetchable(doc.sourceUrl);
     const { html, finalUrl } = await fetchDoc(doc.sourceUrl);
-    doc.progress = 30;
-    await doc.save();
+    await persist({ progress: 30 });
 
     const ex = extract(html, finalUrl);
-    doc.extracted = { ...ex, specs: ex.specs, images: ex.images, features: ex.features };
-    doc.host = new URL(finalUrl).hostname;
-    doc.progress = 55;
-    await doc.save();
+    const extracted = { ...ex, specs: ex.specs, images: ex.images, features: ex.features };
+    const host = new URL(finalUrl).hostname;
+    await persist({ extracted, host, progress: 55 });
 
     const dups = await detectDuplicates(ex, doc.sourceUrl);
-    doc.duplicates = dups.filter((d) => d.productId);
-    doc.duplicateOf = dups[0] && dups[0].score >= 0.95 && dups[0].productId ? dups[0].productId : null;
+    const duplicates = dups.filter((d) => d.productId);
+    const duplicateOf = dups[0] && dups[0].score >= 0.95 && dups[0].productId ? dups[0].productId : null;
+    await persist({ duplicates, duplicateOf });
+
+    const [categories, brands] = await Promise.all([
+      Category.find({}).select('name nameBn slug path').lean(),
+      Brand.find({}).select('name slug').lean(),
+    ]);
+    const ruleCategory = guessCategory(ex, categories);
+    const ruleBrand = guessBrand(ex, brands);
+    let detection = resolveImportDetection(ex, ruleCategory, ruleBrand);
 
     /* rewrite: AI when available, grounded template otherwise */
     let content;
-    try {
-      content = await aiRewrite(ex);
-      usage = content._usage || usage;
-      metaProvider = content.source;
-      delete content._usage;
-    } catch (e) {
-      console.warn('[ai-import] AI rewrite unavailable → template:', e.message);
+    if (!ex.name) {
       content = templateRewrite(ex);
       metaProvider = 'template';
+    } else {
+      try {
+        const result = await aiRewrite(ex, { categories, brands });
+        content = result.content;
+        detection = resolveImportDetection(ex, ruleCategory, ruleBrand, result.detection);
+        usage = result.usage || usage;
+        metaProvider = content.source;
+      } catch (e) {
+        console.warn('[ai-import] AI rewrite unavailable → template:', e.message);
+        content = templateRewrite(ex);
+        metaProvider = 'template';
+      }
     }
-    doc.aiContent = content;
-    doc.progress = 80;
-    await doc.save();
+    const autoDetect = {
+      categorySource: detection.categorySource,
+      categoryConfidence: detection.categoryConfidence,
+      brandSource: detection.brandSource,
+      brandConfidence: detection.brandConfidence,
+      model: detection.model,
+    };
+    await persist({ aiContent: content, autoDetect, progress: 80 });
 
     /* pricing + guesses (admin-editable before approval) */
-    doc.price = doc.price ?? ex.price ?? null;
-    doc.comparePrice = doc.comparePrice ?? ex.comparePrice ?? null;
-    if (!doc.category) doc.categoryGuess = await guessCategory(ex);
-    if (!doc.brand) doc.brandGuessSlug = await guessBrand(ex);
-    if (!doc.category && doc.categoryGuess) {
-      const refs = await ensureImportCategory(doc.categoryGuess, ex.categoryGuess || doc.categoryGuess);
-      if (refs.categoryRef) doc.category = doc.categoryGuess;
-    }
-    if (!doc.brand && doc.brandGuessSlug) {
-      doc.brand = await ensureImportBrand(doc.brandGuessSlug, ex.brandGuess || doc.brandGuessSlug);
+    const price = doc.price ?? ex.price ?? null;
+    const comparePrice = doc.comparePrice ?? ex.comparePrice ?? null;
+    const categoryGuess = detection.categorySlug;
+    const brandGuessSlug = detection.brandSlug;
+    const category = doc.category || categoryGuess;
+    let brand = doc.brand;
+    if (!brand && brandGuessSlug) {
+      const matchedBrand = brands.find((b) => b.slug === brandGuessSlug);
+      if (matchedBrand) brand = matchedBrand._id;
     }
 
     const cfg = await AiSetting.get();
-    doc.images = await rehostImages(ex.images, cfg.import?.maxImages || 8);
-    doc.progress = 100;
-    doc.status = 'ready';
-    doc.meta = { provider: metaProvider, durationMs: Date.now() - started, promptTokens: usage.promptTokens, completionTokens: usage.completionTokens };
-    await doc.save();
-    AiStat.bump({ importEvent: doc.duplicateOf ? 'duplicates' : 'staged' });
+    const images = await rehostImages(ex.images, cfg.import?.maxImages || 8);
+    await persist({
+      price,
+      comparePrice,
+      category,
+      categoryGuess,
+      brandGuessSlug,
+      ...(brand ? { brand } : {}),
+      images,
+      progress: 100,
+      status: 'ready',
+      meta: {
+        provider: metaProvider,
+        durationMs: Date.now() - started,
+        promptTokens: usage.promptTokens,
+        completionTokens: usage.completionTokens,
+      },
+    }, true);
+    AiStat.bump({ importEvent: duplicateOf ? 'duplicates' : 'staged' });
   } catch (e) {
-    await AiImport.findByIdAndUpdate(id, { status: 'failed', error: String(e.message || e).slice(0, 600) }).catch(() => {});
-    AiStat.bump({ importEvent: 'failed' });
+    if (claimed) {
+      try {
+        const result = await AiImport.updateOne(
+          { _id: id, processingToken: runToken },
+          {
+            $set: {
+              status: 'failed',
+              error: String(e.message || e).slice(0, 600),
+            },
+            $unset: { processingToken: 1 },
+          },
+        );
+        if (result.matchedCount) AiStat.bump({ importEvent: 'failed' });
+      } catch (persistError) {
+        console.error(`[ai-import] failed to persist failure for ${id}:`, persistError.message);
+      }
+    }
   } finally {
-    processing.delete(String(id));
+    if (processing.get(key)?.token === runToken) processing.delete(key);
   }
+}
+
+async function recoverStuckImports() {
+  const cutoff = new Date(Date.now() - IMPORT_STALE_MS);
+  const stale = await AiImport.updateMany(
+    { status: 'processing', updatedAt: { $lt: cutoff } },
+    {
+      $set: {
+        status: 'failed',
+        error: 'Import was interrupted or stalled. Retry this import.',
+      },
+      $unset: { processingToken: 1 },
+    },
+  );
+  const pending = await AiImport.find({ status: 'pending' }).select('_id').lean();
+  let resumed = 0;
+  if (pending.length && !recoveringPending) {
+    recoveringPending = true;
+    resumed = pending.length;
+    (async () => {
+      for (const item of pending) await processImport(item._id);
+    })()
+      .catch((error) => console.error('[ai-import] could not resume pending imports:', error.message))
+      .finally(() => { recoveringPending = false; });
+  }
+  return {
+    failed: stale.modifiedCount || 0,
+    resumed,
+  };
 }
 
 /** Create staged imports for one or many URLs and kick the queue. */
@@ -641,15 +1073,32 @@ async function approveImport(id, edits, adminUser) {
   if (b.aiContent?.seo) content.seo = { ...doc.aiContent?.seo, ...b.aiContent.seo };
   if (b.aiContent) content.source = 'admin';
 
-  const name = (b.name || content.name || doc.extracted?.name || 'Imported product').trim();
+  const name = String(b.name ?? content.name ?? doc.extracted?.name ?? '').trim();
+  if (!name) { const e = new Error('Product name was not extracted — enter a product name before approval'); e.status = 400; throw e; }
   const price = Number(b.price ?? doc.price ?? doc.extracted?.price ?? 0);
   if (!price || price <= 0) { const e = new Error('A valid price is required before approval'); e.status = 400; throw e; }
 
-  const categoryLabel = b.category || doc.category || doc.categoryGuess || doc.extracted?.categoryGuess || '';
-  const category = slugify(categoryLabel || (await AiSetting.get()).import?.defaultCategory || 'accessories');
-  const catRefs = await ensureImportCategory(category, categoryLabel);
-  const brandSource = b.brandId && b.brandId !== 'none' ? b.brandId : (doc.brand || doc.brandGuessSlug || doc.extracted?.brandGuess || '');
-  const brandId = await ensureImportBrand(brandSource, doc.extracted?.brandGuess || brandSource);
+  const settings = await AiSetting.get();
+  const categoryManual = b.categoryManual ?? doc.categoryManual ?? false;
+  const categoryLabel = String(categoryManual
+    ? (Object.prototype.hasOwnProperty.call(b, 'category') ? b.category : doc.manualCategoryName || doc.category)
+    : b.category || doc.category || doc.categoryGuess || settings.import?.defaultCategory || '').trim();
+  if (categoryManual && !categoryLabel) {
+    const e = new Error('Enter a category name before approving this import'); e.status = 400; throw e;
+  }
+  const category = catalogSlug(categoryLabel, 'category');
+  if (!category) { const e = new Error('Choose a category before approving this import'); e.status = 400; throw e; }
+  const sourceCategory = String(doc.extracted?.categoryGuess || '').trim();
+  const categoryName = !categoryManual && sourceCategory && catalogSlug(sourceCategory, 'category') === category
+    ? sourceCategory
+    : categoryLabel;
+  const categoryParent = categoryManual ? String(b.categoryParent ?? doc.categoryParent ?? '').trim() : '';
+  const catRefs = await ensureImportCategory(category, categoryName, categoryParent);
+  const brandSource = selectedBrandSource(b, doc);
+  if (b.brandId === 'create' && !brandSource) { const e = new Error('Enter a brand name before creating it'); e.status = 400; throw e; }
+  const brandId = brandSource
+    ? await ensureImportBrand(brandSource, b.brandName || doc.brandName || doc.extracted?.brandGuess || brandSource)
+    : null;
   const warrantyMonths = Math.max(0, Math.min(240, parseInt(b.warrantyMonths ?? doc.warrantyMonths ?? 0, 10) || 0));
 
   /* unique slug */
@@ -753,6 +1202,9 @@ async function updateExistingImport(id, edits, adminUser, targetId) {
   if (!doc) { const e = new Error('Import not found'); e.status = 404; throw e; }
   if (!['ready', 'failed'].includes(doc.status)) { const e = new Error(`Import is still ${doc.status} — wait for it to finish or retry it first`); e.status = 400; throw e; }
   if (!targetId || !/^[a-f\d]{24}$/i.test(String(targetId))) { const e = new Error('targetProductId (a valid Product id) is required for update mode'); e.status = 400; throw e; }
+  if ((edits.categoryManual ?? doc.categoryManual) && !String(edits.category ?? doc.manualCategoryName ?? '').trim()) {
+    const e = new Error('Enter a category name before updating this product'); e.status = 400; throw e;
+  }
   const target = await Product.findById(targetId);
   if (!target) { const e = new Error('Target product not found'); e.status = 404; throw e; }
 
@@ -774,15 +1226,25 @@ async function updateExistingImport(id, edits, adminUser, targetId) {
 
   /* optional re-home (schema mapping below follows the NEW category) */
   if (b.category) {
-    const slugC = slugify(b.category);
+    const slugC = catalogSlug(b.category, 'category');
     if (slugC && slugC !== target.category) {
       target.category = slugC;
-      Object.assign(target, await ensureImportCategory(slugC, b.category));
+      const sourceCategory = String(doc.extracted?.categoryGuess || '').trim();
+      const categoryName = !(b.categoryManual ?? doc.categoryManual) && sourceCategory && catalogSlug(sourceCategory, 'category') === slugC
+        ? sourceCategory
+        : b.category;
+      const categoryParent = (b.categoryManual ?? doc.categoryManual)
+        ? String(b.categoryParent ?? doc.categoryParent ?? '').trim()
+        : '';
+      Object.assign(target, await ensureImportCategory(slugC, categoryName, categoryParent));
     }
   }
-  if (b.brandId !== undefined || !target.brand) {
-    const brandSource = b.brandId && b.brandId !== 'none' ? b.brandId : (doc.brand || doc.brandGuessSlug || doc.extracted?.brandGuess || '');
-    target.brand = await ensureImportBrand(brandSource, doc.extracted?.brandGuess || brandSource);
+  if (b.brandId !== undefined || b.brandName !== undefined || !target.brand) {
+    const brandSource = selectedBrandSource(b, doc);
+    if (b.brandId === 'create' && !brandSource) { const e = new Error('Enter a brand name before creating it'); e.status = 400; throw e; }
+    target.brand = brandSource
+      ? await ensureImportBrand(brandSource, b.brandName || doc.brandName || doc.extracted?.brandGuess || brandSource)
+      : null;
   }
 
   /* images: refresh from the import (desktop drag-order payloads can still
@@ -935,4 +1397,26 @@ async function updateDiff(id, targetId) {
   };
 }
 
-module.exports = { stage, processImport, approveImport, updateExistingImport, updateDiff, normalizeUrl, assertFetchable, extract, detectDuplicates, templateRewrite, similarity, extractPrice };
+module.exports = {
+  stage,
+  processImport,
+  recoverStuckImports,
+  IMPORT_STALE_MS,
+  approveImport,
+  updateExistingImport,
+  updateDiff,
+  normalizeUrl,
+  assertFetchable,
+  extract,
+  detectDuplicates,
+  templateRewrite,
+  aiRewrite,
+  similarity,
+  extractPrice,
+  guessCategory,
+  guessBrand,
+  ensureImportCategory,
+  ensureImportBrand,
+  resolveImportDetection,
+  validateCatalogGuess,
+};

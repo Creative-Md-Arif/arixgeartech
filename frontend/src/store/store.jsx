@@ -6,6 +6,7 @@ import { useCatalog, firstStock, priceFor, stockFor } from './catalog.jsx';
 import { fbTrack } from '../lib/pixel.js';
 import { tr } from '../lib/i18n.jsx';
 import { getSession, setSession, getOrders, pushOrder } from '../lib/storage.js';
+import { logout as serverLogout } from '../services/auth.js';
 
 const Ctx = createContext(null);
 
@@ -17,6 +18,11 @@ function loadSaved() {
 }
 
 const COMPARE_MAX = 4;
+const bundleQtyLimit = (items) => (items || []).reduce((limit, item) => {
+  const stock = Number(item.stock);
+  const perBundle = Math.max(1, Number(item.qty) || 1);
+  return Number.isFinite(stock) ? Math.min(limit, Math.floor(stock / perBundle)) : limit;
+}, 10);
 
 /* Step 4 (4.4) — total units already in the cart for one product+size, across
    every color line: the backend decrements TOP-LEVEL stock per unit, so the
@@ -71,7 +77,13 @@ export function StoreProvider({ children }) {
   const addToCart = useCallback((id, size, color, qty, open, bundle) => {
     if (bundle) {
       const key = 'bundle|' + bundle.slug;
-      setCart((c) => ({ ...c, [key]: { id: null, bundle: bundle.slug, bundleTitle: bundle.title, bundleItems: bundle.items, size: 'Bundle', color: '', qty: (c[key]?.qty || 0) + 1, price: +bundle.bundlePrice } }));
+      const limit = Math.max(0, bundleQtyLimit(bundle.items));
+      if (!(limit > 0) || (cart[key]?.qty || 0) >= limit) {
+        window.dispatchEvent(new CustomEvent('forged:toast', { detail: { title: tr('Bundle quantity limit reached'), sub: tr('A maximum of 10 bundles can be ordered at a time') } }));
+        if (open !== false) window.dispatchEvent(new CustomEvent('forged:open-drawer', { detail: 'cart' }));
+        return;
+      }
+      setCart((c) => ({ ...c, [key]: { id: null, bundle: bundle.slug, bundleTitle: bundle.title, bundleTitleBn: bundle.titleBn || '', bundleItems: bundle.items, size: 'Bundle', color: '', qty: Math.min(limit, (c[key]?.qty || 0) + 1), price: +bundle.bundlePrice } }));
       if (open !== false) window.dispatchEvent(new CustomEvent('forged:open-drawer', { detail: 'cart' }));
       window.dispatchEvent(new CustomEvent('forged:toast', { detail: { title: tr('Bundle added to cart'), sub: bundle.title } }));
       return;
@@ -120,9 +132,16 @@ export function StoreProvider({ children }) {
       if (!c[key]) return c;
       const next = { ...c };
       const it = next[key];
-      const want = it.qty + d;
+      const want = Math.max(1, Math.floor(Number(it.qty) || 1)) + d;
       if (want <= 0) { delete next[key]; return next; }
-      if (it.bundle) { next[key] = { ...it, qty: want }; return next; }
+      if (it.bundle) {
+        const limit = Math.max(0, bundleQtyLimit(it.bundleItems));
+        const qty = Math.min(want, limit);
+        if (qty < want) window.dispatchEvent(new CustomEvent('forged:toast', { detail: { title: tr('Bundle quantity limit reached'), sub: tr('The available stock does not cover that bundle quantity') } }));
+        if (qty <= 0) delete next[key];
+        else next[key] = { ...it, qty };
+        return next;
+      }
       /* Step 4 (4.4) — the + stepper cannot push past available stock; the
          budget is shared across every color line of the same product+size
          (the server decrements top-level stock per unit). */
@@ -156,7 +175,13 @@ export function StoreProvider({ children }) {
       const next = {};
       for (const k in c) {
         const it = c[k];
-        if (it.bundle) { next[k] = it; continue; }
+        if (it.bundle) {
+          const limit = Math.max(0, bundleQtyLimit(it.bundleItems));
+          const qty = Math.min(limit, Math.max(1, Math.floor(+it.qty || 1)));
+          if (qty !== it.qty) changed = true;
+          if (qty > 0) next[k] = qty === it.qty ? it : { ...it, qty };
+          continue;
+        }
         const p = BY_ID[it.id];
         if (!p) { next[k] = it; continue; } /* not in this mirror — leave untouched */
         const cap = allowedQty(p, it.size, it.qty);
@@ -202,7 +227,13 @@ export function StoreProvider({ children }) {
   }, [BY_ID]);
 
   const updateSession = useCallback((s) => { setSession(s); setSessionState(s); }, []);
-  const logout = useCallback(() => updateSession(null), [updateSession]);
+  const logout = useCallback(async () => {
+    try {
+      await serverLogout();
+    } finally {
+      updateSession(null);
+    }
+  }, [updateSession]);
 
   /* Step 3 audit — http.js clears a dead-token session centrally and fires this
      event; the React mirror must follow or pages keep a zombie session object. */
