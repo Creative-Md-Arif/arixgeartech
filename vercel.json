@@ -3,7 +3,29 @@
   "services": {
     "admin": {
       "root": "admin",
-      "framework": "vite"
+      "framework": "vite",
+      "routes": [
+        {
+          "src": "/admin/(.*)",
+          "transforms": [
+            {
+              "type": "request.path",
+              "op": "set",
+              "args": "/$1"
+            }
+          ]
+        },
+        {
+          "src": "/admin",
+          "transforms": [
+            {
+              "type": "request.path",
+              "op": "set",
+              "args": "/"
+            }
+          ]
+        }
+      ]
     },
     "backend": {
       "root": "backend",
@@ -15,6 +37,12 @@
     }
   },
   "rewrites": [
+    {
+      "source": "/admin",
+      "destination": {
+        "service": "admin"
+      }
+    },
     {
       "source": "/admin/(.*)",
       "destination": {
