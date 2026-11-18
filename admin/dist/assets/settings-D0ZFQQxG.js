@@ -1,1 +1,0 @@
-import{d as t}from"./index-B5OiKyJI.js";const a=()=>t("/admin/settings"),d=s=>t("/admin/settings",{method:"PUT",body:s}),n=()=>t("/settings/size-guide"),m=(s,e)=>t("/admin/email-templates/test",{method:"POST",body:{key:s,to:e}});export{n as a,a as g,m as s,d as u};

@@ -10,7 +10,7 @@ production boot checklist the server prints (and exposes at
 
 ```
                 ┌────────────────────────────┐
- Browser ─────► │  Node (backend/server.js)  │ ◄──── MongoDB Atlas (replica set)
+ Browser --> Node (backend/server.js -> backend/app.js) <-- MongoDB Atlas (replica set)
                 │  · REST API  /api/*        │       (M10+ recommended — replica set
                 │  · storefront SPA  /       │        enables multi-doc transactions)
                 │  · admin SPA       /admin  │ ◄──── Cloudinary (images)
@@ -18,12 +18,12 @@ production boot checklist the server prints (and exposes at
                 └────────────────────────────┘
 ```
 
-One process, one port (default 4000). Put nginx / Cloudflare / Render /
+One process, one port (default 5000). Put nginx / Cloudflare / Render /
 Railway in front for TLS; `trust proxy` is already on.
 
 ## 2. Environment (backend/.env)
 
-Copy `backend/.env.example` → `backend/.env` and fill in:
+Copy `backend/.env.example` to `backend/.env` and fill in:
 
 ### Core (required)
 | Variable | Notes |
@@ -77,6 +77,10 @@ npm run seed           # FIRST DEPLOY ONLY — demo catalog + users. Skip to kee
 NODE_ENV=production node backend/server.js
 ```
 
+`backend/app.js` exports the configured Express application for platforms that
+accept an app entry point. `backend/server.js` starts the standalone HTTP and
+Socket.IO server after connecting to MongoDB.
+
 - Storefront → `https://your-domain/`
 - Admin → `https://your-domain/admin/`
 - Boot prints the **PRODUCTION READINESS** report (✓/⚠ per line, now
@@ -104,5 +108,5 @@ NODE_ENV=production node backend/server.js
 - **Logs**: `backend/logs/*.jsonl` (emails, sms, fcm dry-runs). Ship or mount a volume.
 - **Backups**: Admin → System → database JSON export (owner-only) + Atlas continuous backup on M10+.
 - **Scaling**: stateless API → scale horizontally behind the proxy. Socket.IO needs sticky sessions (or the Redis adapter) for >1 node. The AI import queue is per-process and sequential by design (gentle on sources).
-- **Rate limits**: global 800/15min/IP; auth 20/15min; AI chat 40/15min. Tune in `backend/server.js`.
+- **Rate limits**: global 800/15min/IP; auth 20/15min; AI chat 40/15min. Tune in `backend/app.js`.
 - **Zero-cron rule**: deals/flash windows are computed from the clock at read time — servers can restart any time without schedulers drifting.

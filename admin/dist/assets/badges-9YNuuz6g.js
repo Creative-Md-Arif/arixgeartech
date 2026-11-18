@@ -1,1 +1,0 @@
-import{f as e,j as r,O as t,A as i}from"./index-B5OiKyJI.js";import{BadgesCard as a}from"./catalog-CKaDWrUP.js";import"./ui-DKqYEF4K.js";import"./categories-DnXn1Y0b.js";import"./dnd-CVRbv7nJ.js";import"./uploads-Vt0oyCZl.js";import"./specs-t5hFNZft.js";function x(){return e(),r.jsx(t,{children:r.jsx(i,{active:"badges",title:"Badges",children:r.jsx(a,{})})})}export{x as default};

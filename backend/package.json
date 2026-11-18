@@ -2,7 +2,7 @@
   "name": "arixgear-api",
   "version": "1.0.0",
   "description": "arixgear.tech e-commerce REST API — catalog v2, deals & promotions, AI assistant (import/RAG chat), SSLCOMMERZ + manual payments, Cloudinary/local uploads, Resend email, guest orders, division-wise BD shipping, after-sales, realtime",
-  "main": "server.js",
+  "main": "app.js",
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",
