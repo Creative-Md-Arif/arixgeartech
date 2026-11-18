@@ -13,6 +13,7 @@ const { notFound, errorHandler } = require('./src/middleware/error');
 
 /* ---------- production guards ---------- */
 const isProd = process.env.NODE_ENV === 'production';
+const isVercel = Boolean(process.env.VERCEL);
 if (isProd && (!process.env.JWT_SECRET || /change-this|dev-secret|changeme/i.test(process.env.JWT_SECRET))) {
   console.error('FATAL: set a strong JWT_SECRET (32+ random chars) before running in production.');
   process.exit(1);
@@ -20,7 +21,21 @@ if (isProd && (!process.env.JWT_SECRET || /change-this|dev-secret|changeme/i.tes
 
 const app = express();
 app.disable('x-powered-by');
-app.set('trust proxy', 1); // correct client IPs behind reverse proxies (nginx/Render/Railway)
+app.set('trust proxy', 1); // correct client IPs behind reverse proxies (nginx/Render/Railway/Vercel)
+
+/* Vercel serverless: boot block (listen) চলে না, তাই প্রতি request-এ (cached) DB connect.
+   connectDB() একই container-এ connection পুনরায় ব্যবহার করে। */
+if (isVercel) {
+  app.use(async (_req, res, next) => {
+    try {
+      await connectDB();
+      next();
+    } catch (e) {
+      console.error('[db] connect failed:', e.message);
+      res.status(500).json({ message: 'Database unavailable' });
+    }
+  });
+}
 
 /* ---------- security & perf ---------- */
 app.use(helmet({
@@ -289,62 +304,70 @@ function prodChecklist(rs) {
 
 let server;
 let aiImportRecoveryTimer;
-connectDB()
-  .then(async (rs) => {
-    if (isProd) prodChecklist(rs);
-    /* Step 6 — SPEC-SYSTEM MIGRATION AUTO-RUN. The migrate-specs-v3 pass is
-       idempotent; a cheap probe checks for legacy-flat products that never
-       grew canonical specValues (CSV import, restore from an old backup) and
-       bootstraps them so the PDP/filters/compare never meet a schema-less
-       doc. Never blocks or fails the boot. */
-    try {
-      const specMigration = require('./src/services/specMigration');
-      if (await specMigration.needsMigration()) {
-        const r = await specMigration.runMigration();
-        console.log(`[boot] spec migration auto-ran — ${r.migrated} products, ${r.schemasGrown} category schemas grown`);
-      }
-    } catch (e) { console.warn('[boot] spec migration skipped:', e.message); }
-    const aiImporter = require('./src/services/ai/importer');
-    const recoverAiImports = async () => {
-      try {
-        const result = await aiImporter.recoverStuckImports();
-        if (result.failed || result.resumed) {
-          console.warn(`[ai-import] recovery: ${result.failed} stalled, ${result.resumed} pending resumed`);
-        }
-      } catch (e) {
-        console.error('[ai-import] recovery check failed:', e.message);
-      }
-    };
-    await recoverAiImports();
-    aiImportRecoveryTimer = setInterval(recoverAiImports, 60_000);
-    const httpServer = require('http').createServer(app);
-    /* Phase 4 (4.3) — Socket.IO gateway (JWT handshake, user/admin/order rooms).
-       SSE stays for the existing bells; this is the additive realtime channel. */
-    require('./src/services/realtime').init(httpServer);
-    server = httpServer.listen(PORT, () => {
-      console.log(`\n ArixGear API ready → http://localhost:${PORT}`);
-      console.log(`   storefront  http://localhost:${PORT}/`);
-      console.log(`   admin panel http://localhost:${PORT}/admin/`);
-      console.log(`   realtime    ws://localhost:${PORT}/socket.io (JWT auth)\n`);
-    });
-  })
-  .catch((e) => {
-    console.error('MongoDB connection failed:', e.message);
-    console.error('Tip: run `npm run mongo` in another terminal (local dev DB), or set MONGODB_URI to Atlas.');
-    process.exit(1);
-  });
 
-/* ---------- graceful shutdown ---------- */
-function shutdown(signal) {
-  console.log(`\n[${signal}] shutting down…`);
-  if (aiImportRecoveryTimer) clearInterval(aiImportRecoveryTimer);
-  if (server) {
-    server.close(() => {
-      const mongoose = require('mongoose');
-      mongoose.connection.close().then(() => process.exit(0));
+/* Vercel serverless-এ listen / Socket.IO / setInterval চলে না —
+   এই boot অংশ শুধু লোকাল বা VPS-এ (VERCEL সেট না থাকলে) চলবে */
+if (!isVercel) {
+  connectDB()
+    .then(async (rs) => {
+      if (isProd) prodChecklist(rs);
+      /* Step 6 — SPEC-SYSTEM MIGRATION AUTO-RUN. The migrate-specs-v3 pass is
+         idempotent; a cheap probe checks for legacy-flat products that never
+         grew canonical specValues (CSV import, restore from an old backup) and
+         bootstraps them so the PDP/filters/compare never meet a schema-less
+         doc. Never blocks or fails the boot. */
+      try {
+        const specMigration = require('./src/services/specMigration');
+        if (await specMigration.needsMigration()) {
+          const r = await specMigration.runMigration();
+          console.log(`[boot] spec migration auto-ran — ${r.migrated} products, ${r.schemasGrown} category schemas grown`);
+        }
+      } catch (e) { console.warn('[boot] spec migration skipped:', e.message); }
+      const aiImporter = require('./src/services/ai/importer');
+      const recoverAiImports = async () => {
+        try {
+          const result = await aiImporter.recoverStuckImports();
+          if (result.failed || result.resumed) {
+            console.warn(`[ai-import] recovery: ${result.failed} stalled, ${result.resumed} pending resumed`);
+          }
+        } catch (e) {
+          console.error('[ai-import] recovery check failed:', e.message);
+        }
+      };
+      await recoverAiImports();
+      aiImportRecoveryTimer = setInterval(recoverAiImports, 60_000);
+      const httpServer = require('http').createServer(app);
+      /* Phase 4 (4.3) — Socket.IO gateway (JWT handshake, user/admin/order rooms).
+         SSE stays for the existing bells; this is the additive realtime channel. */
+      require('./src/services/realtime').init(httpServer);
+      server = httpServer.listen(PORT, () => {
+        console.log(`\n ArixGear API ready → http://localhost:${PORT}`);
+        console.log(`   storefront  http://localhost:${PORT}/`);
+        console.log(`   admin panel http://localhost:${PORT}/admin/`);
+        console.log(`   realtime    ws://localhost:${PORT}/socket.io (JWT auth)\n`);
+      });
+    })
+    .catch((e) => {
+      console.error('MongoDB connection failed:', e.message);
+      console.error('Tip: run `npm run mongo` in another terminal (local dev DB), or set MONGODB_URI to Atlas.');
+      process.exit(1);
     });
-    setTimeout(() => process.exit(0), 8000).unref(); // force-exit if connections hang
-  } else process.exit(0);
+
+  /* ---------- graceful shutdown (local / VPS only) ---------- */
+  function shutdown(signal) {
+    console.log(`\n[${signal}] shutting down…`);
+    if (aiImportRecoveryTimer) clearInterval(aiImportRecoveryTimer);
+    if (server) {
+      server.close(() => {
+        const mongoose = require('mongoose');
+        mongoose.connection.close().then(() => process.exit(0));
+      });
+      setTimeout(() => process.exit(0), 8000).unref(); // force-exit if connections hang
+    } else process.exit(0);
+  }
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
+  process.on('SIGINT', () => shutdown('SIGINT'));
 }
-process.on('SIGTERM', () => shutdown('SIGTERM'));
-process.on('SIGINT', () => shutdown('SIGINT'));
+
+/* Vercel (and tests) import the Express app directly */
+module.exports = app;
