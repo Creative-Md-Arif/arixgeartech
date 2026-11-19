@@ -5,6 +5,7 @@ import { getSession } from './storage.js';
 
 /* same origin the API rides (single-port model) — strip the /api suffix */
 const ORIGIN = API_BASE.replace(/\/api\/?$/, '') || location.origin;
+const IS_VERCEL_HOST = typeof location !== 'undefined' && location.hostname.endsWith('.vercel.app');
 
 let socket = null;
 let currentToken = null;
@@ -23,6 +24,7 @@ function attach(s) {
 export function connectRealtime(token) {
   const tk = token || (getSession() || {}).token || null;
   if (!tk) { disconnectRealtime(); return null; }
+  if (IS_VERCEL_HOST) { disconnectRealtime(); return null; }
   if (socket && currentToken === tk) return socket;
   disconnectRealtime();
   currentToken = tk;

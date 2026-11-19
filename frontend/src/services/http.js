@@ -10,7 +10,7 @@ const API_BASE = (function () {
 })();
 
 const sessionToken = () => {
-  try { return (JSON.parse(localStorage.getItem('forged_session') || 'null') || {}).token || null; } catch (e) { return null; }
+  try { return (JSON.parse(localStorage.getItem('arixgear_session') || 'null') || {}).token || null; } catch (e) { return null; }
 };
 
 async function api(path, opt = {}) {
@@ -40,6 +40,7 @@ async function api(path, opt = {}) {
        out via auth:false) so wrong-password 401s still surface normally. */
     if (res.status === 401 && tk) {
       try {
+        localStorage.removeItem('arixgear_session');
         localStorage.removeItem('forged_session');
         window.dispatchEvent(new CustomEvent('arixgear:session-expired'));
       } catch (e) {}
