@@ -92,7 +92,7 @@ exports.listByProduct = async (req, res, next) => {
 
     const sort = req.query.sort === 'helpful' ? { helpfulCount: -1, createdAt: -1 } : { createdAt: -1 };
     const filter = { product: p._id, approved: true };
-    const [docs, hist, total] = await Promise.all([
+    const [docs, hist, reviewCount] = await Promise.all([
       Review.find(filter).sort(sort).skip((page - 1) * limit).limit(limit),
       Review.aggregate([
         { $match: filter },
@@ -116,7 +116,7 @@ exports.listByProduct = async (req, res, next) => {
     res.json({
       items: docs.map((r) => view(r, uid ? r.user && String(r.user) === uid : undefined)),
       summary,
-      pagination: { page, pages: Math.ceil(total / limit), total, limit },
+      pagination: { page, pages: Math.ceil(reviewCount / limit), total: reviewCount, limit },
     });
   } catch (e) { next(e); }
 };
