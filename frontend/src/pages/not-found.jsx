@@ -1,7 +1,3 @@
-/* ArixGear page — branded 404 (performance pack 2f).
-   Unknown URLs used to silently bounce home; now they get a proper branded
-   404 with the site's best sellers as suggested products — keeps ad traffic
-   (and confused humans) instead of losing them. */
 import { Link } from 'react-router-dom';
 import ProductCard from '../components/ProductCard.jsx';
 import { useCatalog } from '../store/catalog.jsx';
@@ -12,7 +8,7 @@ export default function NotFoundPage() {
   useSEO('not-found', NF_SEO);
   const { PRODUCTS } = useCatalog();
   const { t } = useLang();
-  /* suggested: best sellers first (fallback to whatever the rack has) */
+  /*suggested: best sellers first (fallback to whatever the rack has)*/
   const picks = [...PRODUCTS].sort((a, b) => (b.sold || 0) - (a.sold || 0)).slice(0, 4);
 
   return (

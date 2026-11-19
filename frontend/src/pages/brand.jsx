@@ -1,6 +1,3 @@
-/* ArixGear page — /brand/:slug (Phase 6a).
-   Brand store: logo, name, live product count and the shared server-driven
-   CatalogBrowser pinned to the brand. Unknown slugs get an honest miss panel. */
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import CatalogBrowser from '../components/CatalogBrowser.jsx';
@@ -11,7 +8,7 @@ import { useLang } from '../lib/i18n.jsx';
 export default function Page() {
   const { slug } = useParams();
   const { t, isBn } = useLang();
-  /* undefined = loading · null = unknown brand · object = live brand */
+  /*undefined = loading · null = unknown brand · object = live brand*/
   const [brand, setBrand] = useState(undefined);
   const [loadError, setLoadError] = useState(false);
   const [reload, setReload] = useState(0);

@@ -1,12 +1,4 @@
-/* ArixGear section — generic renderer for admin-created home sections (Task 59).
-   Any "New Section" saved in Admin → Homepage with a custom key renders HERE,
-   placed on the home page by its order number (see pages/index.jsx).
-   Every section type has a generic block:
-     product-carousel · product-grid · custom-banner · html ·
-     ticker · categories · goal-panels · slider
-   Head copy runs through pick() — the Task 58 Bengali twins (titleBn /
-   subtitleBn) show in BN mode, English is the fallback. A section whose config
-   yields nothing visible renders null (same honesty rule as bespoke sections). */
+/*generic renderer for admin-created home sections. Any "New Section" saved in Admin → Homepage with a custom key renders HERE, placed on the home page by its order number (see pages/index.jsx). Every section type has a generic block: product-carousel · product-grid · custom-banner · html · ticker · categories · goal-panels · slider Head copy runs through pick() — the Bengali twins (titleBn / subtitleBn) show in BN mode, English is the fallback. A section whose config yields nothing visible renders null (same honesty rule as bespoke sections).*/
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useCatalog, adaptOne } from '../../store/catalog.jsx';
 import { useUI } from '../../store/ui.jsx';
@@ -14,7 +6,7 @@ import { listProducts } from '../../services/products.js';
 import { listBanners, bannerClick } from '../../services/banners.js';
 import { go } from '../../lib/go.js';
 import { money } from '../../lib/format.js';
-import { sanitizeHtml, safeHref } from '../../lib/sanitize.js'; /* Step 3 audit — admin-authored HTML/links are sanitized defensively */
+import { sanitizeHtml, safeHref } from '../../lib/sanitize.js'; /*audit — admin-authored HTML/links are sanitized defensively*/
 import { pick, pickArr, useLang } from '../../lib/i18n.jsx';
 import { SectionHead, OutlineTitle } from './Head.jsx';
 import ProductCard from '../../components/ProductCard.jsx';
@@ -22,10 +14,10 @@ import ProductCard from '../../components/ProductCard.jsx';
 const GOAL_IMGS = ['/assets/athlete-1.png', '/assets/hero-1.png', '/assets/story-2.png'];
 const fixUrl = (u) => (!u ? '' : (/^https?:/.test(u) ? u : (u.startsWith('/') ? u : '/' + u)));
 
-/* ---------- product-carousel (config: source newest|featured|best-sellers, limit) ---------- */
+/*---------- product-carousel (config: source newest|featured|best-sellers, limit) ----------*/
 function CarBlock({ sec, cfg }) {
   const lim = Math.min(12, Math.max(1, +cfg.limit || 8));
-  const [items, setItems] = useState(null); /* null = loading */
+  const [items, setItems] = useState(null);
   const trackRef = useRef(null);
   const [dot, setDot] = useState(0);
 
@@ -134,13 +126,13 @@ function CarSkeleton() {
   );
 }
 
-/* ---------- product-grid (config: products = [slugs], limit fallback) ---------- */
+/*---------- product-grid (config: products = [slugs], limit fallback) ----------*/
 function GridBlock({ sec, cfg }) {
   const { BY_ID } = useCatalog();
   const slugs = Array.isArray(cfg.products) ? cfg.products : [];
   const [fetched, setFetched] = useState(null);
 
-  /* no curated slugs → newest N as an honest fallback */
+  /*no curated slugs → newest N as an honest fallback*/
   useEffect(() => {
     if (slugs.length) return undefined;
     let live = true;
@@ -173,7 +165,7 @@ function GridBlock({ sec, cfg }) {
   );
 }
 
-/* ---------- custom-banner (config: bannerId · or image/title/subtitle/cta/link) ---------- */
+/*---------- custom-banner (config: bannerId · or image/title/subtitle/cta/link) ----------*/
 function BannerBlock({ sec, cfg }) {
   const [banner, setBanner] = useState(null);
   const [settled, setSettled] = useState(false);
@@ -254,7 +246,7 @@ function BannerBlock({ sec, cfg }) {
   );
 }
 
-/* ---------- html (config: html raw string · or eyebrow/heading/desc + items) ---------- */
+/*---------- html (config: html raw string · or eyebrow/heading/desc + items) ----------*/
 function HtmlBlock({ sec, cfg }) {
   const items = Array.isArray(cfg.items) ? cfg.items : [];
   if (cfg.html) {
@@ -295,7 +287,7 @@ function HtmlBlock({ sec, cfg }) {
   );
 }
 
-/* ---------- ticker (config: items / itemsBn) ---------- */
+/*---------- ticker (config: items / itemsBn) ----------*/
 function TickerBlock({ sec, cfg }) {
   const items = pickArr(cfg, 'items').map((x) => String(x));
   if (!items.length) return null;
@@ -319,7 +311,7 @@ function TickerBlock({ sec, cfg }) {
   );
 }
 
-/* ---------- categories (config: categories = [slugs]) ---------- */
+/*---------- categories (config: categories = [slugs]) ----------*/
 function CatBlock({ sec, cfg }) {
   const { PRODUCTS, CATS, CAT_OBJS } = useCatalog();
   const [broken, setBroken] = useState({});
@@ -377,7 +369,7 @@ function CatBlock({ sec, cfg }) {
   );
 }
 
-/* ---------- goal-panels (config: goals = [{title, desc, products}]) ---------- */
+/*---------- goal-panels (config: goals = [{title, desc, products}]) ----------*/
 function GoalBlock({ sec, cfg }) {
   const { BY_ID } = useCatalog();
   const { openPDP } = useUI();
@@ -434,7 +426,7 @@ function GoalBlock({ sec, cfg }) {
   );
 }
 
-/* ---------- slider (config: slides = [{img, title, subtitle, link}]) ---------- */
+/*---------- slider (config: slides = [{img, title, subtitle, link}]) ----------*/
 function SliderBlock({ sec, cfg }) {
   const slides = (Array.isArray(cfg.slides) ? cfg.slides : []).filter((s) => s && (s.img || s.title));
   const [i, setI] = useState(0);
@@ -489,9 +481,8 @@ function SliderBlock({ sec, cfg }) {
   );
 }
 
-/* ---------- dispatcher ---------- */
 export default function Generic({ sec }) {
-  useLang(); // Task 58 — subscribe so BN toggles re-render pick() copy
+  useLang();  // subscribe so BN toggles re-render pick() copy
   const cfg = (sec && sec.config) || {};
   switch (sec.type) {
     case 'product-carousel': return <CarBlock sec={sec} cfg={cfg} />;

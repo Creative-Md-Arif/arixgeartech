@@ -1,6 +1,3 @@
-/* ArixGear page — /register (Phase 6b).
-   Creates the UNVERIFIED account (backend emails a 6-digit OTP) and hands off
-   to /verify-email carrying email + devOtp through router state (never URL). */
 import { useState } from 'react';
 import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import { register } from '../services/auth.js';
@@ -34,7 +31,7 @@ export default function Page() {
     setBusy(true);
     register(form.name.trim(), form.email.trim(), form.pass, form.phone.trim())
       .then((d) => {
-        try { fbTrack('CompleteRegistration', {}); } catch (_e) { /* pixel optional */ }
+        try { fbTrack('CompleteRegistration', {}); } catch (_e) {}
         toast(t('Account created'), t('We emailed you a 6-digit verification code.'));
         nav('/verify-email', { state: { email: d.email || form.email.trim(), devOtp: d.devOtp || '' }, replace: true });
       })

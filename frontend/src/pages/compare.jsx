@@ -1,9 +1,3 @@
-/* ArixGear page — /compare (conversion pack 3a · Step 6 upgrade).
-   2–4 picked products side by side: price, rating, stock, sizes and the UNION
-   of their spec keys. Step 6 — when the compared products share a category
-   schema, spec rows render GROUPED by that schema (group header strips,
-   per-field icons, Bengali labels) matching the PDP; keys the schema doesn't
-   know land in "Other specifications". No schema → the legacy flat table. */
 import { Fragment, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useStore } from '../store/store.jsx';
@@ -23,15 +17,14 @@ export default function ComparePage() {
 
   const items = [...compare].map((id) => BY_ID[id] || PRODUCTS.find((p) => p.id === id)).filter(Boolean);
 
-  /* union of spec keys across the compared products (order-stable) */
+  /*union of spec keys across the compared products (order-stable)*/
   const specKeys = [];
   const seen = new Set();
   items.forEach((p) => (p.specs || []).forEach(([k]) => {
     if (k && !seen.has(k)) { seen.add(k); specKeys.push(k); }
   }));
 
-  /* Step 6 — the union branch's spec schema (merged server-side across the
-     compared categories). Carries group order, labelBn twins and field icons. */
+  /*the union branch's spec schema (merged server-side across the compared categories). Carries group order, labelBn twins and field icons.*/
   const [specSchema, setSpecSchema] = useState(null);
   const catUnion = [...new Set(items.map((p) => p.catSlug).filter(Boolean))].join(',');
   useEffect(() => {
@@ -41,9 +34,7 @@ export default function ComparePage() {
     return () => { on = false; };
   }, [catUnion]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  /* grouped row model: schema groups first (schema order), orphans last.
-     Each row = { k(label), icon, cells: [value|'—' per product] } so the
-     table renders one <tr> per row across all grouped sections. */
+  /*grouped row model: schema groups first (schema order), orphans last. Each row = { k(label), icon, cells: [value|'—' per product] } so the table renders one <tr> per row across all grouped sections.*/
   const groups = useMemo(() => {
     if (items.length < 2) return [];
     const cellOf = (p, k) => {
@@ -60,7 +51,7 @@ export default function ComparePage() {
         for (const f of [...(g.fields || [])].sort((a, b) => (a.order || 0) - (b.order || 0))) {
           if (f.showInDetails === false) continue;
           const match = lowerKey.get(String(f.label).toLowerCase());
-          if (!match) continue; // no compared product carries this field's flat row
+          if (!match) continue;  // no compared product carries this field's flat row
           used.add(match);
           rows.push(makeRow(isBn && f.labelBn ? f.labelBn : f.label, f.icon));
         }
@@ -70,7 +61,7 @@ export default function ComparePage() {
       if (orphanRows.length) out.push({ key: '__other', label: t('Other specifications'), rows: orphanRows, isGroup: true });
       if (out.length) return out;
     }
-    /* legacy flat union — one unnamed section (old behaviour, kept as fallback) */
+    /*legacy flat union — one unnamed section (old behaviour, kept as fallback)*/
     return [{ key: '__flat', label: '', rows: specKeys.map((k) => makeRow(k)), isGroup: true }];
   }, [items, specKeys, specSchema, isBn]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -170,9 +161,7 @@ export default function ComparePage() {
                     ))}
                   </tr>
                 )}
-                {/* Step 6 — GROUPED spec sections from the category schema
-                    (group header strips · per-field icons · bn labels);
-                    no schema → the flat union fallback. */}
+                {/*GROUPED spec sections from the category schema (group header strips · per-field icons · bn labels); no schema → the flat union fallback.*/}
                 {groups.map((g) => (
                   <Fragment key={g.key}>
                     {g.label ? (

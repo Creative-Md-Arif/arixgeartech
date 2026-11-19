@@ -1,12 +1,8 @@
-/* ArixGear page — contact / support: info cards, FAQ accordion, message form (→ admin inbox).
-   React port of legacy js/pages/contact.js. Copy comes from content.contact /
-   content.faqs (Admin → Content) with the legacy defaults as fallback. */
 import { useState } from 'react';
 import { sendMessage } from '../services/messages.js';
 import { useContent } from '../store/content.jsx';
 import { useUI } from '../store/ui.jsx';
 
-/* ---------- shared primitives ---------- */
 const Eyebrow = ({ children }) => (
   <p className="font-cond font-semibold uppercase tracking-[.45em] text-acc text-[.82rem] flex items-center gap-3">
     <i className="not-italic inline-block h-0.5 w-9 bg-acc" />{children}
@@ -18,9 +14,9 @@ const inputCls = 'w-full border border-line2 bg-bg2 px-4 py-3 text-[.92rem] text
 const errInputCls = 'border-red animate-shake';
 const btnPrimary = 'inline-flex items-center justify-center gap-2.5 bg-acc px-8 py-4 font-head font-extrabold text-[.8rem] uppercase tracking-[.2em] text-black transition-all duration-300 clip-notch hover:bg-acc2 hover:-translate-y-0.5';
 
-const TOPICS = ['Order & shipping', 'Returns — 30 days', 'Product question', 'Service & repair', 'Complaint', 'Wholesale']; // Phase 3 — fitness-era topics swapped for tech support flows
+const TOPICS = ['Order & shipping', 'Returns — 30 days', 'Product question', 'Service & repair', 'Complaint', 'Wholesale'];  // fitness-era topics swapped for tech support flows
 
-/* multi-line info cell text (legacy data-cs-type="lines") */
+/*multi-line info cell text (legacy data-cs-type="lines")*/
 const Lines = ({ text }) => (
   <>
     {String(text || '').split(/\n/).filter((l) => l.trim()).map((l, i) => <span key={i} className="block">{l}</span>)}
@@ -35,80 +31,11 @@ export default function Page() {
   const { toast } = useUI();
   const c = content.contact || {};
 
-  /* form state (legacy ids kept) */
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [order, setOrder] = useState('');
-  const [topic, setTopic] = useState(() => { /* quick-services deep links (?topic=Service & repair) */ const t = new URLSearchParams(window.location.search).get('topic'); return TOPICS.includes(t) ? t : TOPICS[0]; });
-  const [message, setMessage] = useState('');
-  const [errs, setErrs] = useState({ name: false, email: false, msg: false });
-  const [busy, setBusy] = useState(false);
-  const [sent, setSent] = useState(false);
-
-  /* FAQ accordion — one open at a time (legacy behavior) */
-  const faqs = Array.isArray(content.faqs) ? content.faqs : [];
-  const [openFaq, setOpenFaq] = useState(null);
-
-  const done = () => {
-    setSent(true);
-    toast('Message sent', 'We answer like training partners — within one working day.');
-    setName(''); setEmail(''); setOrder(''); setMessage('');
-    setTimeout(() => setSent(false), 7000);
-  };
-
-  const submit = async (e) => {
-    e.preventDefault();
-    const badName = !name.trim();
-    const badEmail = !/^\S+@\S+\.\S+$/.test(email);
-    const badMsg = message.trim().length < 10;
-    setErrs({ name: badName, email: badEmail, msg: badMsg });
-    if (badName || badEmail || badMsg) {
-      toast('Check the form', 'Name, a valid email and a 10+ character message.');
-      return;
-    }
-    setBusy(true);
-    try {
-      await sendMessage({
-        name: name.trim(), email: email.trim(), orderNo: order.trim(), topic,
-        subject: topic + (order.trim() ? ' · ' + order.trim() : ''),
-        message: message.trim(),
-      });
-      done();
-    } catch (err) {
-      if (err.offline) done(); /* static preview fallback — same as legacy */
-      else toast('Not sent', err.message || 'Something went wrong — try again.');
-    } finally { setBusy(false); }
-  };
-
-  const conCell = (title, text) => (
-    <div className="border border-line bg-panel p-6">
-      <h4 className="mb-2 font-cond font-bold text-[.78rem] uppercase tracking-[.3em] text-acc">{title}</h4>
-      <p className="text-[.9rem] text-muted"><Lines text={text} /></p>
-    </div>
-  );
-
-  return (
-    <>
-
-      <section id="page-contact" className="py-16 md:py-24">
-        <div className="container mx-auto w-[92%]">
-
-          <div className="mb-10">
-            {c.eyebrow ? <Eyebrow>{c.eyebrow}</Eyebrow> : null}
-            <h2 className="mt-4 font-disp uppercase leading-[.96] text-4xl md:text-6xl">
-              {c.heading
-                ? String(c.heading).split(/\n/).filter((l) => l.trim()).map((ln, i) => {
-                  const w = ln.trim().split(' '); const last = w.pop();
-                  return <span key={i} className="block">{w.join(' ')}{w.length ? ' ' : ''}<span className="text-outline">{last}</span></span>;
-                })
-                : null}
-            </h2>
-          </div>
-
-          <div className="grid items-start gap-5 lg:grid-cols-[1.5fr_1fr]">
-
-            {/* ---------- MESSAGE FORM ---------- */}
-            <div className="border border-line bg-panel p-6 sm:p-8">
+  const [topic, setTopic] = useState(() => {/*quick-services deep links (?topic=Service & repair)*/ const t = new URLSearchParams(window.location.search).get('topic'); return TOPICS.includes(t) ? t : TOPICS[0]; }); const [message, setMessage] = useState(''); const [errs, setErrs] = useState({ name: false, email: false, msg: false }); const [busy, setBusy] = useState(false); const [sent, setSent] = useState(false); /*FAQ accordion — one open at a time (legacy behavior)*/ const faqs = Array.isArray(content.faqs) ? content.faqs : []; const [openFaq, setOpenFaq] = useState(null); const done = () => { setSent(true); toast('Message sent', 'We answer like training partners — within one working day.'); setName(''); setEmail(''); setOrder(''); setMessage(''); setTimeout(() => setSent(false), 7000); }; const submit = async (e) => { e.preventDefault(); const badName = !name.trim(); const badEmail = !/^\S+@\S+\.\S+$/.test(email); const badMsg = message.trim().length < 10; setErrs({ name: badName, email: badEmail, msg: badMsg }); if (badName || badEmail || badMsg) { toast('Check the form', 'Name, a valid email and a 10+ character message.'); return; } setBusy(true); try { await sendMessage({ name: name.trim(), email: email.trim(), orderNo: order.trim(), topic, subject: topic + (order.trim() ? ' · ' + order.trim() : ''), message: message.trim(), }); done(); } catch (err) { if (err.offline) done();  else toast('Not sent', err.message || 'Something went wrong — try again.'); } finally { setBusy(false); } }; const conCell = (title, text) => ( <div className="border border-line bg-panel p-6"> <h4 className="mb-2 font-cond font-bold text-[.78rem] uppercase tracking-[.3em] text-acc">{title}</h4> <p className="text-[.9rem] text-muted"><Lines text={text} /></p> </div> ); return ( <> <section id="page-contact" className="py-16 md:py-24"> <div className="container mx-auto w-[92%]"> <div className="mb-10"> {c.eyebrow ? <Eyebrow>{c.eyebrow}</Eyebrow> : null} <h2 className="mt-4 font-disp uppercase leading-[.96] text-4xl md:text-6xl"> {c.heading ? String(c.heading).split(/\n/).filter((l) => l.trim()).map((ln, i) => { const w = ln.trim().split(' '); const last = w.pop(); return <span key={i} className="block">{w.join(' ')}{w.length ? ' ' : ''}<span className="text-outline">{last}</span></span>; }) : null} </h2> </div> <div className="grid items-start gap-5 lg:grid-cols-[1.5fr_1fr]">
+<div className="border border-line bg-panel p-6 sm:p-8">
               <h3 className="mb-6 font-disp text-[1.25rem] uppercase"><i className="not-italic text-acc">01</i> Send a Message</h3>
               <form id="ctForm" noValidate onSubmit={submit}>
                 <div className="grid gap-4 sm:grid-cols-2">
@@ -148,17 +75,17 @@ export default function Page() {
               </form>
             </div>
 
-            {/* ---------- CONTACT INFO (admin → Content → Contact page) ---------- */}
+            {/*---------- CONTACT INFO (admin → Content → Contact page) ----------*/}
             <div className="grid gap-5">
               {c.emails ? conCell('Email', c.emails) : null}
               {c.phone ? conCell('Phone', c.phone) : null}
               {c.responseTime ? conCell('Response Time', c.responseTime) : null}
               {c.hours ? conCell('Hours', c.hours) : null}
-              {c.address ? conCell('The Forge HQ', c.address) : null}
+              {c.address ? conCell('The ArixGear HQ', c.address) : null}
             </div>
           </div>
 
-          {/* ---------- FAQ (admin → Content → FAQs; hidden when none defined) ---------- */}
+          {/*---------- FAQ (admin → Content → FAQs; hidden when none defined) ----------*/}
           {faqs.length > 0 && (
           <div className="mt-14">
             <div className="mb-8">
@@ -196,7 +123,7 @@ export default function Page() {
 
         </div>
       </section>
-    
+
     </>
   );
 }

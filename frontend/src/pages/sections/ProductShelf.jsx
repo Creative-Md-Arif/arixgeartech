@@ -1,12 +1,4 @@
-/* ArixGear section — generic product carousel shelf (Phase 3).
-   One engine for every product-strip section: new-arrivals (#9) and
-   best-sellers (#10) both render through this — config.source decides the
-   ordering from the live home feed:
-     newest → createdAt desc · best-selling → sold desc · trending → views desc
-     featured → feed order (admin-curated) · rating → rating desc
-   Head copy + anchor come from the admin home-section row (key = section key).
-   id/QA contract: the new-arrivals shelf keeps the legacy ids (#new, carTrack,
-   carDots) so the Task 59 browser journeys keep working. */
+/*generic product carousel shelf. One engine for every product-strip section: new-arrivals (#9) and best-sellers (#10) both render through this — config.source decides the ordering from the live home feed: newest → createdAt desc · best-selling → sold desc · trending → views desc featured → feed order (admin-curated) · rating → rating desc Head copy + anchor come from the admin home-section row (key = section key). id/QA contract: the new-arrivals shelf keeps the legacy ids (#new, carTrack, carDots) so the browser journeys keep working.*/
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useCatalog } from "../../store/catalog.jsx";
 import { useContent } from "../../store/content.jsx";
@@ -14,7 +6,7 @@ import ProductCard from "../../components/ProductCard.jsx";
 import { pick, useLang } from "../../lib/i18n.jsx";
 import { SectionHead, OutlineTitle } from "./Head.jsx";
 
-const CAR_MS = 4600; /* legacy auto-advance cadence */
+const CAR_MS = 4600;
 
 function sortFor(source) {
   switch (source) {
@@ -29,7 +21,7 @@ function sortFor(source) {
     case "rating":
       return (a, b) => (+b.rating || 0) - (+a.rating || 0);
     default:
-      return null; /* featured — feed order */
+      return null;
   }
 }
 

@@ -1,6 +1,3 @@
-/* ArixGear page — /blog — the Journal (Task 47 Content Hub).
-   Grid of published posts: cover, tag chips, date, excerpt. SEO per-post
-   via the shared settings site meta. Zero hardcode — live /api/blog. */
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { listPosts } from '../services/blog.js';
@@ -13,7 +10,7 @@ export default function BlogPage() {
   const { isBn } = useLang();
   useSEO('blog', { title: 'The Journal — Training, Gear & Nutrition | ArixGear' });
   const [data, setData] = useState({ items: [], total: 0, page: 1, pages: 1 });
-  const [state, setState] = useState('loading'); // loading | ok | empty
+  const [state, setState] = useState('loading');
   const [page, setPage] = useState(1);
   const [reload, setReload] = useState(0);
 
@@ -67,7 +64,7 @@ export default function BlogPage() {
         {state === 'empty' && (
           <div className="mt-10 border border-dashed border-line2 px-8 py-16 text-center text-muted" data-testid="blogEmpty">
             <h3 className="mb-2 font-disp text-[1.8rem] uppercase text-txt">No Posts Yet</h3>
-            <p>The first write-up is being forged. Check back soon.</p>
+            <p>The first write-up is being written. Check back soon.</p>
           </div>
         )}
 

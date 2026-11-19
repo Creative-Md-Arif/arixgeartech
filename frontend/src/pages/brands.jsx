@@ -1,6 +1,3 @@
-/* ArixGear page — /brands (Phase 6d).
-   Brand directory: every active brand with its live product count, filterable
-   by name, linking into the routed brand stores. Featured strip first. */
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { listBrands } from '../services/brands.js';
@@ -14,7 +11,7 @@ export default function Page() {
     description: 'Every official brand store on arixgear.tech — genuine imports, live product counts, warranty-backed, nationwide delivery.',
   });
   const { t, isBn } = useLang();
-  const [rows, setRows] = useState(null); /* null loading · [] none */
+  const [rows, setRows] = useState(null);
   const [q, setQ] = useState('');
   const [loadError, setLoadError] = useState(false);
   const [reload, setReload] = useState(0);
@@ -73,7 +70,6 @@ export default function Page() {
           </p>
         </div>
 
-        {/* name filter */}
         <div className="mt-8 flex items-center gap-[.6rem] border border-line bg-panel px-[.9rem] py-[.7rem] ring-1 ring-inset ring-line2 focus-within:ring-acc sm:max-w-md">
           <svg viewBox="0 0 24 24" className="h-[15px] w-[15px] flex-none fill-none stroke-[2] stroke-dim"><circle cx="11" cy="11" r="7" /><path d="M21 21l-4.3-4.3" /></svg>
           <input

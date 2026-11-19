@@ -1,7 +1,7 @@
 /* ArixGear ADMIN i18n — Task 48. BN/EN UI toggle (UI strings only; API data and
    all backend responses stay English). English source strings are the keys:
    tr(key) === key when lang=en (default), Bangla mapping when lang=bn. */
-import { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { BN } from './bn.js';
 
 const KEY = 'forged_admin_lang';

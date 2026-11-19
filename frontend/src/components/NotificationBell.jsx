@@ -1,7 +1,4 @@
-/* ArixGear storefront component — customer notification bell (Task 36).
-   Hidden for guests (only logged-in customers receive server events).
-   SSE stream, unread badge, dropdown, mark-all-read, click-through to
-   the Account page, Bengali toast on every new event. */
+/* Customer notifications through the SSE stream and account history. */
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { list, markAllRead, markRead, streamUrl } from '../services/notifications.js';
@@ -34,7 +31,7 @@ export default function NotificationBell({ session }) {
   useEffect(() => {
     if (!session?.token) return; // guests have no bell
     load();
-    /* Step 6 — streamUrl is async now (single-use ticket mint first) */
+    /* streamUrl is async now (single-use ticket mint first) */
     let es = null;
     let cancelled = false;
     streamUrl().then((url) => {
@@ -46,16 +43,16 @@ export default function NotificationBell({ session }) {
         setItems((xs) => [n, ...xs].slice(0, 30));
         setUnread((u) => u + 1);
         toast(n.title, 'ok');
-        if (soundOn('user')) playBell();          /* Task 37 — ding-dong */
-        showPush(n.title, n.body || '', n.link);   /* Task 37 — OS push when hidden */
+        if (soundOn('user')) playBell();          /* ding-dong */
+        showPush(n.title, n.body || '', n.link);   /* OS push when hidden */
       } catch (_) {}
       });
-      es.onerror = () => { /* EventSource auto-reconnects */ };
-    });
+      es.onerror = () => {};
+    }).catch(() => {/*notification streaming is optional; keep the app usable*/});
     return () => { cancelled = true; if (es) es.close(); };
   }, [session?.token]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  /* Task 37 — push click → focus tab + navigate */
+  /* push click → focus tab + navigate */
   useEffect(() => { window.__pushNav = (link) => link && nav(link || '/account'); }, []);
 
   useEffect(() => {

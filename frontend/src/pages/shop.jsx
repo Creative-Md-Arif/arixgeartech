@@ -1,6 +1,3 @@
-/* ArixGear page — shop all (Phase 6a: the engine moved to CatalogBrowser).
-   Server-driven catalog: every filter change queries /api/products with
-   pagination — no client mirror. Deep links: ?cat=slug (multi: ?cat=a,b). */
 import CatalogBrowser from '../components/CatalogBrowser.jsx';
 import { useLang } from '../lib/i18n.jsx';
 import { useSEO } from '../lib/seo.jsx';

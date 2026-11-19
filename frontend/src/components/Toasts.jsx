@@ -1,4 +1,3 @@
-/* ArixGear component — toast notifications (bottom-right stack) */
 import { useUI } from '../store/ui.jsx';
 
 export default function Toasts() {

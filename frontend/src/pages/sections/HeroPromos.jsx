@@ -1,12 +1,9 @@
-/* ArixGear section — hero side promos (Phase 3, #4 of 13: "hero + 2 side promos").
-   Reads Banners position=side (max 2) from the content store. Desktop (xl+):
-   two-card column beside the hero. Below xl: a 2-col grid right
-   under the hero. No side banners → renders nothing. */
+/*hero side promos. Reads Banners position=side (max 2) from the content store. Desktop (xl+): two-card column beside the hero. Below xl: a 2-col grid right under the hero. No side banners → renders nothing.*/
 import { useContent } from '../../store/content.jsx';
 import { go } from '../../lib/go.js';
 import { bannerClick } from '../../services/banners.js';
 import { pick, useLang } from '../../lib/i18n.jsx';
-import { safeHref } from '../../lib/sanitize.js'; /* Step 3 audit — banner links are admin-authored; refuse javascript:/data: schemes */
+import { safeHref } from '../../lib/sanitize.js'; /*audit — banner links are admin-authored; refuse javascript:/data: schemes*/
 
 const fixUrl = (u) => (!u ? '' : (/^https?:/.test(u) ? u : (u.startsWith('/') ? u : '/' + u)));
 
@@ -54,11 +51,11 @@ export default function HeroPromos() {
 
   return (
     <>
-      {/* Desktop promo column beside the featured hero card */}
+
       <aside className={'hero-promos-rail hidden min-w-0 grid-cols-1 gap-4 xl:grid xl:grid-rows-2' + (items.length === 1 ? ' single-promo' : '')} id="heroPromos" data-testid="heroPromos">
         {items.slice(0, 2).map((bn, i) => <PromoCard key={bn.id || bn._id || i} bn={bn} />)}
       </aside>
-      {/* below-xl — same promos as a grid right under the hero */}
+      {/*below-xl — same promos as a grid right under the hero*/}
       <div className="hero-promos-mobile grid grid-cols-2 gap-3 pb-2 pt-4 xl:hidden sm:gap-4">
         {items.slice(0, 2).map((bn, i) => <PromoCard key={'m' + (bn.id || bn._id || i)} bn={bn} />)}
       </div>

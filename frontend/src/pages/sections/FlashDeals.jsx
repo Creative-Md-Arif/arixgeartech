@@ -1,8 +1,4 @@
-/* ArixGear section — flash deals + countdown (Phase 3, #8 of 13).
-   Reads /api/products/flash (server-swapped flash prices, soonest-ending
-   first). Big countdown to the soonest endsAt; grid of up to 4 deal cards.
-   No live deals → renders a quiet promo strip to /flash-sale when the admin
-   row exists, else nothing (honest empty state). */
+/*flash deals + countdown. Reads /api/products/flash (server-swapped flash prices, soonest-ending first). Big countdown to the soonest endsAt; grid of up to 4 deal cards. No live deals → renders a quiet promo strip to /flash-sale when the admin row exists, else nothing (honest empty state).*/
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useContent } from '../../store/content.jsx';
@@ -35,7 +31,7 @@ const Cell = ({ v, label }) => (
 export default function FlashDeals() {
   useLang();
   const { sectionVisible, homeSections } = useContent();
-  const [items, setItems] = useState(null); // null = loading, [] = none live
+  const [items, setItems] = useState(null);
   const [serverNow] = useState(null);
   const trackRef = useRef(null);
   void serverNow;
@@ -53,7 +49,7 @@ export default function FlashDeals() {
     return () => { dead = true; };
   }, [visible, sec]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  /* countdown target: soonest flash end */
+  /*countdown target: soonest flash end*/
   const target = useMemo(() => {
     if (!items || !items.length) return null;
     const ends = items.map((p) => p.flash && p.flash.endsAt).filter(Boolean).map((x) => +new Date(x));
@@ -85,7 +81,7 @@ export default function FlashDeals() {
   if (!visible || !sec) return null;
   const lim = sec.config && +sec.config.limit > 0 ? Math.min(8, +sec.config.limit) : 4;
   if (items && !items.length) {
-    /* honest empty: quiet strip to /flash-sale */
+    /*honest empty: quiet strip to /flash-sale*/
     return (
       <section id="flash" className="hsec pb-4 pt-10">
         <div className="container mx-auto w-[92%]">

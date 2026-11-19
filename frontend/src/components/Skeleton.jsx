@@ -1,7 +1,3 @@
-/* ArixGear skeleton loaders — Task 47 polish.
-   Pulse-placeholder twins of the real card shapes: shown while the catalog's
-   first fetch is in flight so shop/home don't pop in with a jarring layout
-   jump. Pure presentation — zero logic. */
 export function CardSkeleton() {
   return (
     <article className="card skeleton-card bg-panel border border-line" aria-hidden="true">

@@ -1,7 +1,4 @@
-/* ArixGear section — member stories (#stories).
-   100% admin-driven: config comes from sectionCfg('stories') (Admin → Homepage).
-   No items / section hidden → render null. Keeps the "Shop what he/she uses"
-   stack behavior + [data-list] contract. */
+/*member stories (#stories). 100% admin-driven: config comes from sectionCfg('stories') (Admin → Homepage). No items / section hidden → render null. Keeps the "Shop what he/she uses" stack behavior + [data-list] contract.*/
 import { useEffect, useRef, useState } from 'react';
 import { useContent } from '../../store/content.jsx';
 import { useUI } from '../../store/ui.jsx';
@@ -9,12 +6,18 @@ import { tr, pick, pickArr, useLang } from '../../lib/i18n.jsx';
 import { getCommunity } from '../../services/community.js';
 import { SectionHead, OutlineTitle } from './Head.jsx';
 
+const STORY_AUTO_MS = 5000;
+
 export default function Stories() {
-  useLang(); // Task 58 — subscribe so BN toggles re-render pick() copy
+  useLang();  // subscribe so BN toggles re-render pick() copy
   const { homeSections, sectionVisible } = useContent();
   const { openPDP, toast } = useUI();
   const [feed, setFeed] = useState(null);
   const trackRef = useRef(null);
+  const [dot, setDot] = useState(0);
+  const [hold, setHold] = useState(false);
+  const holdRef = useRef(false);
+  holdRef.current = hold;
   const section = homeSections.find((item) => item?.key === 'stories');
 
   useEffect(() => {
@@ -23,9 +26,9 @@ export default function Stories() {
     return () => ctrl.abort();
   }, []);
 
-  if (!sectionVisible('stories') || !section || !feed?.items?.length) return null;
+  const visible = sectionVisible('stories');
 
-  /* legacy global-events parity: open the first product + toast the full stack */
+  /*legacy global-events parity: open the first product + toast the full stack*/
   const shopStack = (list) => {
     if (!list) return;
     const ids = String(list).split(',');
@@ -50,6 +53,17 @@ export default function Stories() {
     else storyJump(storyIndex() + 1);
   };
 
+  useEffect(() => {
+    if (!visible || hold || (feed?.items?.length || 0) < 2) return undefined;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return undefined;
+    const timer = window.setInterval(() => {
+      if (!holdRef.current && !document.hidden) storyNext();
+    }, STORY_AUTO_MS);
+    return () => window.clearInterval(timer);
+  }, [visible, hold, feed?.items?.length]);
+
+  if (!visible || !section || !feed?.items?.length) return null;
+
   return (
     <section id="stories" className="hsec py-16 lg:py-24">
       <div className="container mx-auto w-[92%]">
@@ -61,12 +75,12 @@ export default function Stories() {
             <button type="button" className="car-btn group grid h-[46px] w-[46px] place-items-center border border-line2 bg-panel transition hover:border-acc" onClick={storyNext} aria-label="Next stories"><svg viewBox="0 0 24 24" className="h-[17px] w-[17px] fill-none stroke-silver stroke-2 transition group-hover:stroke-acc"><path d="M5 12h14M13 6l6 6-6 6" /></svg></button>
           </div>}
         />
-        <div ref={trackRef} className="story-grid mx-auto flex max-w-[560px] gap-[1.15rem] overflow-x-auto pb-2 [scroll-snap-type:x_mandatory] [scrollbar-width:none] lg:mx-0 lg:max-w-none [&::-webkit-scrollbar]:hidden">
-          {feed.items.slice(0, 3).map((s) => (
+        <div ref={trackRef} onScroll={() => setDot(storyIndex())} onMouseEnter={() => setHold(true)} onMouseLeave={() => setHold(false)} className="story-grid mx-auto flex max-w-[560px] gap-[1.15rem] overflow-x-auto pb-2 [scroll-snap-type:x_mandatory] [scrollbar-width:none] lg:mx-0 lg:max-w-none [&::-webkit-scrollbar]:hidden">
+          {feed.items.map((s) => (
             <div key={s.name} className="story-slide flex-none [scroll-snap-align:start]">
               <article className="story-card group flex flex-col border border-line bg-panel transition duration-300 ease-forge hover:-translate-y-1.5 hover:border-line2">
               <div className="story-media relative aspect-[4/3.2] overflow-hidden">
-                {s.img ? <img src={s.img} alt={s.alt} loading="lazy" className="h-full w-full object-cover contrast-[1.1] grayscale-[.9] transition-all duration-700 ease-forge group-hover:scale-[1.05] group-hover:grayscale-[.4]" /> : null}
+                {s.img ? <img src={s.img} alt={s.alt} loading="lazy" className="h-full w-full object-contain contrast-[1.1] grayscale-[.9] transition-all duration-700 ease-forge group-hover:grayscale-[.4]" /> : null}
                 <div className="story-stats absolute inset-x-0 bottom-0 flex bg-gradient-to-t from-black/90 to-transparent">
                   {pickArr(s, 'stats').map(([num, lbl]) => (
                     <div key={lbl} className="story-stat flex-1 border-r border-white/10 px-[.6rem] pb-[.8rem] pt-[.9rem] text-center last:border-r-0">
@@ -96,6 +110,18 @@ export default function Stories() {
               </div>
               </article>
             </div>
+          ))}
+        </div>
+        <div className="car-dots mt-[1.6rem] flex justify-center gap-[.5rem]" aria-label="Choose a customer story">
+          {feed.items.map((story, index) => (
+            <button
+              key={story.name}
+              type="button"
+              aria-label={`Go to story ${index + 1}`}
+              aria-current={index === dot ? 'true' : undefined}
+              className={'car-dot h-[3px] w-[26px] cursor-pointer rounded-none transition-colors duration-300 ' + (index === dot ? 'bg-acc' : 'bg-line2')}
+              onClick={() => storyJump(index)}
+            />
           ))}
         </div>
       </div>

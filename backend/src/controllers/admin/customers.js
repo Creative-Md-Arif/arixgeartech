@@ -58,12 +58,21 @@ exports.resetCustomerPassword = async (req, res, next) => {
   try {
     const user = await User.findOne({ _id: req.params.id, role: 'customer' });
     if (!user) return res.status(404).json({ message: 'Customer not found' });
-    const { resetUrl } = await require('./authController')._issueResetToken(user, req);
+    const { resetUrl } = await require('../authController')._issueResetToken(user, req);
     res.json({
       resetUrl,
       expiresIn: 15,
       customer: { id: user._id, name: user.name, email: user.email, phone: user.phone || '' },
     });
+  } catch (e) { next(e); }
+};
+
+/* DELETE /api/admin/customers/:id — preserve orders for historical reference. */
+exports.deleteCustomer = async (req, res, next) => {
+  try {
+    const user = await User.findOneAndDelete({ _id: req.params.id, role: 'customer' });
+    if (!user) return res.status(404).json({ message: 'Customer not found' });
+    res.json({ message: 'Customer account deleted' });
   } catch (e) { next(e); }
 };
 
@@ -215,6 +224,7 @@ module.exports = {
   customers: exports.customers,
   customerTags: exports.customerTags,
   resetCustomerPassword: exports.resetCustomerPassword,
+  deleteCustomer: exports.deleteCustomer,
   loyaltyList: exports.loyaltyList,
   loyaltyDetail: exports.loyaltyDetail,
   loyaltyAdjust: exports.loyaltyAdjust,

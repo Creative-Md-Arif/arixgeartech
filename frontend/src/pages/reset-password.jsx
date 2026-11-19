@@ -1,5 +1,3 @@
-/* ArixGear page — /reset-password?token=… : set a new password from the
-   emailed (or admin-sent) single-use reset link. Public route. */
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { verifyResetToken, resetPassword } from '../services/auth.js';
@@ -16,7 +14,6 @@ export default function Page() {
   const [params] = useSearchParams();
   const token = params.get('token') || '';
 
-  /* verify | invalid | done */
   const [state, setState] = useState('verify');
   const [maskedEmail, setMaskedEmail] = useState('');
   const [pw, setPw] = useState('');
@@ -43,7 +40,7 @@ export default function Page() {
     try {
       const d = await resetPassword(token, pw);
       setState('done');
-      toast('Password forged anew', d.message || 'Log in with your new password.');
+      toast('Password reset', d.message || 'Log in with your new password.');
     } catch (err) {
       toast('Could not reset', err.message || 'The link may have expired — request a new one.');
     } finally { setBusy(false); }

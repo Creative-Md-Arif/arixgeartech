@@ -1,19 +1,26 @@
-import { defineConfig } from 'vite';
+import { fileURLToPath } from 'node:url';
+import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 
-/* FORGED storefront — single-page React app (react-router).
-   One HTML shell; every route is a React component. Build → dist/,
-   which the Express backend serves at / with an SPA history fallback. */
-export default defineConfig({
-  plugins: [react()],
-  base: '/',
-  server: {
-    port: 5173,
-    proxy: {
-      '/api': 'http://127.0.0.1:5000',
-      '/uploads': 'http://127.0.0.1:5000',
-      '/socket.io': { target: 'http://127.0.0.1:5000', ws: true }, /* Phase 7 — realtime gateway in dev */
+const backendEnvDir = fileURLToPath(new URL('../backend/', import.meta.url));
+
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, backendEnvDir, ['PORT', 'API_PROXY_TARGET']);
+  const target = (env.API_PROXY_TARGET || `http://127.0.0.1:${env.PORT || 5000}`).replace(/\/+$/, '');
+
+  return {
+    plugins: [react({ jsxRuntime: 'automatic' })],
+    base: '/',
+    server: {
+      port: 5173,
+      strictPort: true,
+      hmr: { clientPort: 5173 },
+      proxy: {
+        '/api': target,
+        '/uploads': target,
+        '/socket.io': { target, ws: true },
+      },
     },
-  },
-  build: { outDir: 'dist', emptyOutDir: true },
+    build: { outDir: 'dist', emptyOutDir: true },
+  };
 });

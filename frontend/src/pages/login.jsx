@@ -1,6 +1,3 @@
-/* ArixGear page — /login (Phase 6b).
-   Standalone login twin of the account hub tab: email/phone + password,
-   needsVerification redirect to the OTP page, ?next= deep-link return. */
 import { useState } from 'react';
 import { Link, useNavigate, useSearchParams, Navigate } from 'react-router-dom';
 import { login } from '../services/auth.js';
@@ -20,11 +17,11 @@ export default function Page() {
   const [params] = useSearchParams();
   const next = params.get('next') || '/account';
 
-  const [form, setForm] = useState({ id: '', pass: '' });
+  const [form, setForm] = useState({ id: params.get('email') || '', pass: '' });
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
 
-  /* already logged in? straight to the account hub (or the deep-linked page) */
+  /*already logged in? straight to the account hub (or the deep-linked page)*/
   if (session && session.token) return <Navigate to={next} replace />;
 
   const submit = (e) => {
@@ -35,7 +32,7 @@ export default function Page() {
     login(form.id.trim(), form.pass)
       .then((d) => {
         setSession({ token: d.token, user: d.user });
-        try { fbTrack('Login', { method: 'Email' }); } catch (_e) { /* pixel optional */ }
+        try { fbTrack('Login', { method: 'Email' }); } catch (_e) {}
         toast(t('Welcome back, {name}', { name: (d.user && d.user.name) || 'friend' }), t('The rack missed you.'));
         nav(next, { replace: true });
       })

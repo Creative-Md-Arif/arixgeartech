@@ -1,7 +1,3 @@
-/* ArixGear page — /category/:slug (Phase 6a).
-   One page per catalog branch: breadcrumb, bilingual title, live branch count,
-   child-category narrowing chips and the shared server-driven CatalogBrowser.
-   Unknown slugs get an honest "not in the catalog" panel, not a dead 404. */
 import { useMemo } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import CatalogBrowser from '../components/CatalogBrowser.jsx';
@@ -14,7 +10,7 @@ export default function Page() {
   const { catTree, catTreeReady, catTreeError, refreshCategoryTree } = useContent();
   const { t, isBn } = useLang();
 
-  /* Resolve any depth in the live tree and retain every breadcrumb ancestor. */
+  /*Resolve any depth in the live tree and retain every breadcrumb ancestor.*/
   const cat = useMemo(() => {
     if (!catTreeReady) return undefined;
     const find = (nodes, ancestors = []) => {
@@ -27,7 +23,7 @@ export default function Page() {
     };
     const found = find(catTree || []);
     if (found) return found;
-    return null; // known tree, unknown slug → honest miss
+    return null;
   }, [catTree, catTreeReady, slug]);
 
   const label = cat && cat.name ? (isBn && cat.nameBn ? cat.nameBn : cat.name) : '';
@@ -39,7 +35,6 @@ export default function Page() {
       : undefined,
   } : null);
 
-  /* tree still landing → skeleton */
   if (cat === undefined) {
     return (
       <section className="page py-16 lg:py-24">
@@ -65,7 +60,6 @@ export default function Page() {
     );
   }
 
-  /* unknown slug → honest panel */
   if (!cat) {
     return (
       <section className="page py-16 lg:py-24">
@@ -88,7 +82,7 @@ export default function Page() {
   return (
     <section id="page-category" className="page py-16 lg:py-24">
       <div className="container mx-auto w-[92%]">
-        {/* breadcrumb */}
+
         <nav className="mb-6 flex items-center gap-2 font-cond text-[.8rem] uppercase tracking-[.18em] text-dim" aria-label="Breadcrumb">
           <Link to="/" className="transition-colors hover:text-acc">{t('Home')}</Link>
           <span>/</span>

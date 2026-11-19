@@ -1,18 +1,14 @@
-/* ArixGear storefront i18n — Task 48. Bangla/English UI toggle.
-   English source strings are the dictionary KEYS: t('Add to Cart') returns the
-   key unchanged in English (default), the mapped Bangla string when lang=bn,
-   and falls back to the key when a mapping is missing. UI strings only —
-   backend API data (product names, statuses, emails) always stays English. */
+/* UI translations and bilingual API field helpers. */
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { BN } from './bn.js';
 
-const KEY = 'forged_lang';
+const KEY = 'arixgear_lang';
 const Ctx = createContext(null);
 
 /* module-level current lang — non-React code (stores/toasts) calls tr() */
 let CUR = 'en';
 
-/* Task 58 — bilingual DB content picker. Backend documents carry BOTH
+/* bilingual DB content picker. Backend documents carry BOTH
    languages (`name` + `nameBn`, …). pick() returns the Bengali field when
    lang=bn AND the Bengali value is non-empty; anything else falls back to
    the English source of truth. Non-React code (stores) may call this too —

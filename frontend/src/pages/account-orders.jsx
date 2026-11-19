@@ -1,6 +1,3 @@
-/* ArixGear page — /account/orders (Phase 6b).
-   Routed order history: JWT /orders/my, adapted rows, status chips, thumbnails
-   from the catalog mirror, invoice + detail deep links. */
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { myOrders, downloadInvoice } from '../services/orders.js';
@@ -18,7 +15,7 @@ export default function Page() {
   const { toast } = useUI();
   const { BY_ID } = useCatalog();
   const { session } = useStore();
-  const [orders, setOrders] = useState(null); /* null = loading · [] = none */
+  const [orders, setOrders] = useState(null);
   const [invBusy, setInvBusy] = useState('');
 
   useEffect(() => {

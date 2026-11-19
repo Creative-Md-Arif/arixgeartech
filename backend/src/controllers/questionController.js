@@ -26,18 +26,19 @@ function escapeRx(s) {
 
 /* ============ PUBLIC ============ */
 
-// GET /api/products/:slug/questions[?mine=1&sort=helpful] — ANSWERED questions for
+// GET /api/products/:slug/questions[?mine=1&sort=helpful&page=1] — ANSWERED questions for
 // the PDP (newest or most-helpful first). With a JWT + ?mine=1 the asker also gets
 // their own PENDING questions so they can see the moderation status.
 exports.listByProduct = async (req, res, next) => {
   try {
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const limit = 10;
     const p = await Product.findOne({ slug: String(req.params.slug || '').toLowerCase(), active: true }).select('_id');
-    if (!p) return res.json({ items: [] });
+    if (!p) return res.json({ items: [], pagination: { page, pages: 0, total: 0, limit } });
 
     const sort = req.query.sort === 'helpful'
       ? { helpfulCount: -1, createdAt: -1 }
       : { createdAt: -1 };
-
     if (req.query.mine === '1' && req.user) {
       /* asker view — own questions in BOTH states + status chips.
          NEVER send raw docs here: they carry voter keys + user refs. */
@@ -57,8 +58,15 @@ exports.listByProduct = async (req, res, next) => {
       return res.json({ items: answered.map(pubItem(req)), mine });
     }
 
-    const items = await Question.find({ product: p._id, answered: true }).sort(sort).limit(50);
-    res.json({ items: items.map(pubItem(req)) });
+    const filter = { product: p._id, answered: true };
+    const [items, total] = await Promise.all([
+      Question.find(filter).sort(sort).skip((page - 1) * limit).limit(limit),
+      Question.countDocuments(filter),
+    ]);
+    res.json({
+      items: items.map(pubItem(req)),
+      pagination: { page, pages: Math.ceil(total / limit), total, limit },
+    });
   } catch (e) { next(e); }
 };
 

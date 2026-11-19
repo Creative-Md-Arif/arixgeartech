@@ -1,6 +1,3 @@
-/* ArixGear page — /search?q= (Phase 6a).
-   Full-page search: the query lives in the URL (shareable deep links),
-   the shared CatalogBrowser drives the server query with two-way ?q= sync. */
 import CatalogBrowser from '../components/CatalogBrowser.jsx';
 import { useSEO } from '../lib/seo.jsx';
 import { useLang } from '../lib/i18n.jsx';

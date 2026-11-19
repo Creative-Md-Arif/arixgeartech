@@ -1,10 +1,4 @@
-/* ArixGear core — SPA navigation bridge.
-   go(target) keeps the legacy helper signature so page/component code keeps
-   working, but instead of full page loads it drives react-router:
-     go('shop')            → /shop            go('success.html')   → /success
-     go('blog?post=x')     → /guides?post=x   go('')               → /
-     go('#goals')          → in-page anchor (scrolls if home, else goes home first)
-   App.jsx binds the router navigator once on boot via bindNavigator(). */
+/* Route legacy go() calls through React Router after its navigator is bound. */
 let NAV = null;
 
 export function bindNavigator(fn) {

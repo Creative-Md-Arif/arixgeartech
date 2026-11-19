@@ -1,8 +1,4 @@
-/* ArixGear services — HTTP client (single low-level fetch wrapper).
-   Same-origin when served by the API. The localStorage.forged_api_base debug
-   override is honored ONLY on non-production origins (file:/localhost/127.x):
-   a stored override on a live HTTPS site would silently re-route every
-   authenticated request — token included — to an attacker-controlled host. */
+/* Local API overrides are restricted to local origins to protect production auth tokens. */
 const LOCAL_ORIGIN = (typeof location !== 'undefined')
   && (location.protocol === 'file:' || /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname));
 const API_BASE = (function () {
@@ -36,7 +32,7 @@ async function api(path, opt = {}) {
   }
   let data = {}; try { data = await res.json(); } catch (e) {}
   if (!res.ok) {
-    /* Step 3 audit — a 401 with an attached token means the session is dead
+    /* audit — a 401 with an attached token means the session is dead
        (expired/revoked/signed-out-elsewhere). Clear it ONCE centrally so no
        page gets stuck in a zombie "logged-in" shell where every call fails:
        the account Gate re-renders to the Members-Only panel and ?next= brings
@@ -45,7 +41,7 @@ async function api(path, opt = {}) {
     if (res.status === 401 && tk) {
       try {
         localStorage.removeItem('forged_session');
-        window.dispatchEvent(new CustomEvent('forged:session-expired'));
+        window.dispatchEvent(new CustomEvent('arixgear:session-expired'));
       } catch (e) {}
     }
     const err = new Error(data.message || 'Request failed (' + res.status + ')'); err.status = res.status; err.data = data; throw err;

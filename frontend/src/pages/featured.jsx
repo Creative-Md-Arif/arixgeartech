@@ -1,6 +1,3 @@
-/* ArixGear page — /featured (Phase 6d).
-   Staff-picked shelf — the shared CatalogBrowser pinned to the server's
-   featured flag (pinned: { featured: true } rides every query). */
 import { Link } from 'react-router-dom';
 import CatalogBrowser from '../components/CatalogBrowser.jsx';
 import { useLang } from '../lib/i18n.jsx';

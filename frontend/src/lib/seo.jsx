@@ -1,8 +1,4 @@
-/* ArixGear — SEO head manager (no external helmet lib).
-   One public fetch of /api/seo is cached module-level; every page calls
-   useSEO(pageKey) which applies: title (template), meta description/keywords,
-   robots, canonical, Open Graph, Twitter Card and JSON-LD structured data.
-   PDP applies dynamic Product schema through the same engine.            */
+/* Apply admin-configured SEO metadata and structured data to storefront pages. */
 import { useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { getAll } from '../services/seo.js';
@@ -36,7 +32,7 @@ function upsertMeta(attr, key, content) {
   el.setAttribute('content', content);
 }
 
-/* branded 404 SEO — used by pages/not-found.jsx (Task 47 orphan activation) */
+/* Keep not-found pages out of search results. */
 export const NF_SEO = { title: 'Page Not Found — ArixGear', robots: 'noindex,follow' };
 
 function upsertCanonical(href) {
@@ -224,10 +220,7 @@ export function useSEO(pageKey, dyn) {
 export function pageKeyForPath(pathname) {
   if (pathname === '/' || !pathname) return 'home';
   const seg = pathname.split('/')[1];
-  /* Task 47 — added track-order/compare/blog/payment; UNKNOWN paths now
-     return null so the PDP-close restore skips them instead of slapping
-     the HOME head over pages that manage their own (404 noindex, Journal,
-     compare noindex — a long-standing clobber bug). */
+  /* Unknown routes manage their own head metadata. */
   const known = ['shop', 'about', 'guides', 'contact', 'account', 'checkout', 'success', 'track-order', 'compare', 'blog', 'payment', 'flash-sale'];
   return known.includes(seg) ? seg : null;
 }

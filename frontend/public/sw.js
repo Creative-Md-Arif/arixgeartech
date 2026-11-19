@@ -4,7 +4,7 @@
    - /api/ + cross-origin → network only (never cache commerce data)
    - same-origin assets (js/css/img/fonts) → stale-while-revalidate
    Version bump ARIX_CACHE to invalidate everything.                       */
-const VERSION = 'arix-v4';
+const VERSION = 'arix-v5';
 const SHELL = ['/', '/manifest.webmanifest', '/pwa-icon-192.png', '/pwa-icon-512.png'];
 
 self.addEventListener('install', (e) => {
@@ -45,7 +45,11 @@ self.addEventListener('fetch', (e) => {
           caches.open(VERSION).then((c) => c.put('/', copy)).catch(() => {});
           return res;
         })
-        .catch(() => caches.match(req).then((hit) => hit || caches.match('/')))
+        .catch(() => caches.match(req).then((hit) => hit || caches.match('/')).then((hit) => hit || new Response('Offline', {
+          status: 503,
+          statusText: 'Service Unavailable',
+          headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+        })))
     );
     return;
   }
@@ -61,7 +65,7 @@ self.addEventListener('fetch', (e) => {
           }
           return res;
         })
-        .catch(() => hit);
+        .catch(() => hit || new Response('', { status: 504, statusText: 'Gateway Timeout' }));
       return hit || refresh;
     })
   );

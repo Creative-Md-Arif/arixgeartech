@@ -1,14 +1,4 @@
-/* ArixGear core — storefront Socket.IO client (Phase 7 integration).
-   ADDITIVE to the SSE notification stream by design:
-   - SSE (/notifications/stream) stays the primary bell/notification channel
-   - this client adds the low-latency ORDER ROOM: a detail/track page joins
-     `order:<NUM>` (owner JWT or checkout-phone proof, enforced server-side)
-     and receives `order:updated` fan-outs, so status changes render live
-     without any polling.
-   Handshake = JWT via auth.token, exactly what the backend gateway middleware
-   expects (Phase 4). Every failure is swallowed — the socket is a progressive
-   enhancement: pages still work when it never connects.
-   QA mirror: window.__arixRT = { connected, id? } (checked by qa_phase7).    */
+/* Socket.IO client for live order updates alongside the SSE notification channel. */
 import { io } from 'socket.io-client';
 import { API_BASE } from '../services/http.js';
 import { getSession } from './storage.js';

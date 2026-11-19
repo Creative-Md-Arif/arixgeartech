@@ -1,8 +1,3 @@
-/* ArixGear page — /cart (Phase 6a).
-   Full-page twin of the cart drawer: line rows with qty steppers, free-shipping
-   progress, guest-checkout gate notice and a straight path to checkout.
-   Line images resolve from the home-feed mirror first; anything beyond the
-   mirror is fetched live from /api/products/:slug. */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import ProductCard from '../components/ProductCard.jsx';
@@ -16,8 +11,7 @@ import { money } from '../lib/format.js';
 import { useLang } from '../lib/i18n.jsx';
 import { useSEO } from '../lib/seo.jsx';
 
-/* row image — only renders a real src; a failed load swaps to a neutral tile
-   (an onError hidden <img> would stay invisible even after the src recovers) */
+/*row image — only renders a real src; a failed load swaps to a neutral tile (an onError hidden <img> would stay invisible even after the src recovers)*/
 function RowImg({ p, onOpen }) {
   const [failed, setFailed] = useState(false);
   if (!p || !p.img || failed) return <div className="h-24 w-24 flex-none bg-bg2" aria-hidden="true" />;
@@ -44,7 +38,7 @@ export default function Page() {
   const { n, sum } = cartTotals();
   const left = Math.max(0, FREE_SHIP - sum);
 
-  /* lines beyond the home-feed mirror resolve live */
+  /*lines beyond the home-feed mirror resolve live*/
   const [remote, setRemote] = useState({});
   const missingKey = keys.map((k) => cart[k].id).filter((id) => !BY_ID[id] && !remote[id]).sort().join(',');
   const fetchingRef = useRef(false);
@@ -68,7 +62,7 @@ export default function Page() {
   }, [missingKey]); // eslint-disable-line react-hooks/exhaustive-deps
   const at = (id) => BY_ID[id] || remote[id] || null;
 
-  /* guest checkout kill-switch — same notice as the drawer */
+  /*guest checkout kill-switch — same notice as the drawer*/
   const [guestOff, setGuestOff] = useState(false);
   useEffect(() => {
     let live = true;
@@ -113,7 +107,7 @@ export default function Page() {
           </div>
         ) : (
           <div className="mt-10 grid gap-8 lg:grid-cols-[1fr_360px]">
-            {/* line rows */}
+
             <div className="cart-lines border border-line bg-panel">
               {keys.map((k) => {
                 const it = cart[k];
@@ -160,7 +154,6 @@ export default function Page() {
               })}
             </div>
 
-            {/* summary */}
             <aside className="cart-summary h-fit border border-line bg-panel p-6 lg:sticky lg:top-32">
               <div className="ship-progress border-b border-line pb-4">
                 <p className="font-cond text-[.85rem] tracking-[.08em] text-muted">
@@ -195,7 +188,7 @@ export default function Page() {
           </div>
         )}
 
-        {/* cross-sell — mirror picks, hidden while the rack is empty */}
+        {/*cross-sell — mirror picks, hidden while the rack is empty*/}
         {keys.length > 0 && crossSell.length ? (
           <div className="mt-16">
             <h3 className="mb-5 flex items-center gap-3 font-cond text-[.9rem] font-semibold uppercase tracking-[.3em] text-muted">

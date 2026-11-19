@@ -1,10 +1,6 @@
-/* ArixGear page — /verify-email (Phase 6b).
-   6-box OTP twin of the account hub verifier: paste support, auto-advance,
-   60s resend cooldown, dev-code hint when the backend mirrors the OTP. */
 import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { verifyEmail, resendVerification } from '../services/auth.js';
-import { useStore } from '../store/store.jsx';
 import { useUI } from '../store/ui.jsx';
 import { useLang } from '../lib/i18n.jsx';
 import { useSEO } from '../lib/seo.jsx';
@@ -15,13 +11,12 @@ const SIX = [0, 1, 2, 3, 4, 5];
 export default function Page() {
   useSEO('verify-email', { title: 'Verify Email — arixgear.tech', robots: 'noindex,follow' });
   const { t } = useLang();
-  const { setSession } = useStore();
   const { toast } = useUI();
   const nav = useNavigate();
   const loc = useLocation();
   const [params] = useSearchParams();
 
-  /* email comes from ?email=… (login redirect) or router state (register handoff) */
+  /*email comes from ?email=… (login redirect) or router state (register handoff)*/
   const st = (loc && loc.state) || {};
   const [email, setEmail] = useState(st.email || params.get('email') || '');
   const devOtp = st.devOtp || '';
@@ -33,7 +28,6 @@ export default function Page() {
   const [rsLeft, setRsLeft] = useState(0);
   const refs = useRef([]);
 
-  /* resend cooldown ticker */
   useEffect(() => {
     if (rsLeft <= 0) return undefined;
     const id = setInterval(() => setRsLeft((s) => s - 1), 1000);
@@ -65,12 +59,11 @@ export default function Page() {
     if (!email) { setErr(t('Enter the account email first.')); return; }
     if (code.length !== 6) { setErr(t('Enter all 6 digits of the code.')); return; }
     setBusy(true);
-    verifyEmail(email, code)
-      .then((d) => {
-        setSession({ token: d.token, user: d.user });
-        setOk(t('Email verified — you are logged in.'));
-        toast(t('Welcome, {name}', { name: (d.user && d.user.name) || 'friend' }), t('Referral credits, guest orders and loyalty are now yours.'));
-        setTimeout(() => nav('/account', { replace: true }), 900);
+    verifyEmail(email, code, undefined, false)
+      .then(() => {
+        setOk(t('Email verified. Please log in.'));
+        toast(t('Email verified'), t('Your account is ready. Please log in to continue.'));
+        setTimeout(() => nav('/login?email=' + encodeURIComponent(email), { replace: true }), 900);
       })
       .catch((e2) => setErr(e2.message || t('Verification failed — try again.')))
       .finally(() => setBusy(false));

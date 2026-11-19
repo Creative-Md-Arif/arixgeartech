@@ -50,10 +50,10 @@ label { display: block; font-size: 11px; letter-spacing: .12em; text-transform: 
 ::-webkit-scrollbar-track { background: rgb(var(--c-sb-track)); }
 
 /* Typography: Space Grotesk — self-hosted variable font (weights 300–700) */
-@font-face { font-family:'Space Grotesk'; src:url('/admin/fonts/SpaceGrotesk-var.woff2') format('woff2-variations'); font-weight:300 700; font-display:swap; }
+@font-face { font-family:'Space Grotesk'; src:url('/fonts/SpaceGrotesk-var.woff2') format('woff2-variations'); font-weight:300 700; font-display:swap; }
 
 /* Bangla font + BN-mode typography (wide tracking & uppercase break Bengali conjuncts) */
-@font-face { font-family:'Noto Sans Bengali'; src:url('/admin/fonts/NotoSansBengali-400.woff2') format('woff2'); font-weight:100 900; font-display:swap; }
+@font-face { font-family:'Noto Sans Bengali'; src:url('/fonts/NotoSansBengali-400.woff2') format('woff2'); font-weight:100 900; font-display:swap; }
 html[lang="bn"] body, html[lang="bn"] .font-disp, html[lang="bn"] .font-body { font-family:'Noto Sans Bengali','Space Grotesk',ui-sans-serif,system-ui,sans-serif; }
 html[lang="bn"] [class*="uppercase"] { text-transform:none; }
 html[lang="bn"] [class*="tracking-"] { letter-spacing:normal; }

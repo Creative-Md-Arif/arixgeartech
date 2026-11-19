@@ -1,6 +1,6 @@
-/* ArixGear sections — shared display helpers: outline display title + section head */
+/*shared display helpers: outline display title + section head*/
 export function OutlineTitle({ text }) {
-  /* port of legacy outlineTitle(): last word of every line gets the outline stroke */
+  /*port of legacy outlineTitle(): last word of every line gets the outline stroke*/
   const lines = String(text || '').split(/\n/).map((l) => l.trim()).filter(Boolean);
   return (
     <>

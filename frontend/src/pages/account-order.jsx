@@ -1,11 +1,7 @@
-/* ArixGear page — /account/orders/:id (Phase 6b).
-   Full order view for the account owner: status timeline, line items, server
-   totals, payment block, self-cancel (pre-shipment) and the RMA form on
-   delivered orders. The JWT owner passes the backend phone-gate automatically. */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { trackOrder, cancelOrder, requestReturn, downloadInvoice } from '../services/orders.js';
-import { joinOrder, leaveOrder, onRealtime } from '../lib/realtime.js'; /* Phase 7 — live order room */
+import { joinOrder, leaveOrder, onRealtime } from '../lib/realtime.js';
 import { money, STATUS_LABELS, DIV_LABELS, PAY_LABELS } from '../lib/format.js';
 import { useCatalog } from '../store/catalog.jsx';
 import { useUI } from '../store/ui.jsx';
@@ -15,7 +11,7 @@ import { PageHead, AcctNav, Gate, ErrStrip, OkStrip, miniBtn, btnPrimary, stTone
 
 const inputCls = 'w-full border border-line2 bg-bg2 px-4 py-3 text-[.92rem] text-txt outline-none transition-colors placeholder:text-dim focus:border-acc';
 
-/* order status flow order — for the timeline rail */
+/*order status flow order — for the timeline rail*/
 const FLOW = ['verifying', 'processing', 'packed', 'shipped', 'delivered'];
 
 function Timeline({ history, status }) {
@@ -59,28 +55,27 @@ export default function Page() {
   const { toast } = useUI();
   const { BY_ID } = useCatalog();
 
-  const [order, setOrder] = useState(undefined); /* undefined loading · null miss · object live */
+  const [order, setOrder] = useState(undefined); /*undefined loading · null miss · object live*/
   const [ret, setRet] = useState({ on: false, reason: 'damaged', note: '', qty: {} });
-  const [msg, setMsg] = useState(null); /* {tone:'err'|'ok', text} */
+  const [msg, setMsg] = useState(null); /*{tone:'err'|'ok', text}*/
   const [busy, setBusy] = useState('');
-  /* guest rows are not account-linked — the phone-suffix proof re-opens them */
+  /*guest rows are not account-linked — the phone-suffix proof re-opens them*/
   const [proof, setProof] = useState({ on: false, phone: '', err: '' });
-  const proofRef = useRef(''); /* checkout phone that last passed proof ('' = owner JWT) */
+  const proofRef = useRef(''); /*checkout phone that last passed proof ('' = owner JWT)*/
 
   useEffect(() => {
     let dead = false;
     setOrder(undefined);
     setProof({ on: false, phone: '', err: '' });
     proofRef.current = '';
-    /* owner JWT — no phone suffix needed */
+
     trackOrder(id, {})
       .then((d) => { if (!dead) setOrder(d.order || null); })
       .catch(() => { if (!dead) { setOrder(null); setProof((p) => ({ ...p, on: true })); } });
     return () => { dead = true; };
   }, [id]);
 
-  /* Phase 7 — live order room: join after a successful proof (owner JWT or the
-     checkout phone) and re-pull the order when the server fans order:updated. */
+  /*live order room: join after a successful proof (owner JWT or the checkout phone) and re-pull the order when the server fans order:updated.*/
   useEffect(() => {
     if (!order || !order.orderNumber) return undefined;
     joinOrder(order.orderNumber, proofRef.current);
@@ -181,7 +176,6 @@ export default function Page() {
               <ErrStrip>{msg && msg.tone === 'err' ? msg.text : ''}</ErrStrip>
               <OkStrip>{msg && msg.tone === 'ok' ? msg.text : ''}</OkStrip>
 
-              {/* head row */}
               <div className="flex flex-wrap items-center gap-x-5 gap-y-2 border border-line bg-panel px-5 py-4">
                 <span className="font-disp text-[1.15rem] tracking-[.03em] text-acc">{order.orderNumber}</span>
                 <span className="font-cond text-[.78rem] uppercase tracking-[.18em] text-dim">{dFmt(order.createdAt)}</span>
@@ -190,12 +184,10 @@ export default function Page() {
                 </span>
               </div>
 
-              {/* timeline */}
               <div className="mt-6">
                 <Timeline history={order.statusHistory} status={order.status} />
               </div>
 
-              {/* items */}
               <div className="mt-8 border border-line bg-panel">
                 <div className="border-b border-line px-5 py-3 font-cond text-[.78rem] uppercase tracking-[.22em] text-dim">{t('Items')}</div>
                 {items.map((it, i) => {
@@ -216,7 +208,6 @@ export default function Page() {
                 })}
               </div>
 
-              {/* totals + payment + shipping */}
               <div className="mt-6 grid gap-6 lg:grid-cols-3">
                 <div className="border border-line bg-panel p-5">
                   <p className="mb-3 font-cond text-[.78rem] uppercase tracking-[.22em] text-dim">{t('Totals')}</p>
@@ -249,7 +240,6 @@ export default function Page() {
                 </div>
               </div>
 
-              {/* actions */}
               <div className="mt-8 flex flex-wrap items-center gap-3">
                 <button type="button" className={`${miniBtn} w-full max-w-full whitespace-normal text-center sm:w-auto`} disabled={busy === 'invoice'} onClick={doInvoice}>{t('Download invoice (PDF)')}</button>
                 {order.canCancel ? (
@@ -266,7 +256,6 @@ export default function Page() {
                 <Link to="/account/orders" className="ml-auto font-cond text-[.78rem] uppercase tracking-[.2em] text-dim transition-colors hover:text-acc">← {t('All orders')}</Link>
               </div>
 
-              {/* RMA form */}
               {ret.on ? (
                 <form id="retForm" onSubmit={submitReturn} className="mt-6 border border-line bg-panel p-5 sm:p-6">
                   <p className="mb-4 font-cond text-[.82rem] font-semibold uppercase tracking-[.3em] text-acc">{t('Return request')}</p>
@@ -314,5 +303,5 @@ export default function Page() {
   );
 }
 
-/* tiny helper — label style local to the RMA block */
+/*tiny helper — label style local to the RMA block*/
 const miniLabelCls = () => 'mb-1.5 block font-cond font-semibold text-[.72rem] uppercase tracking-[.24em] text-silver2';

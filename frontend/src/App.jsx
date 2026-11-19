@@ -1,10 +1,3 @@
-/* ArixGear storefront — route table (SPA, Phase 2 architecture).
-   - every route is registered in src/routes.jsx (the full 44-page map) and
-     loaded through React.lazy → per-page chunks under one Suspense shell
-   - registered-but-future routes render SoonPage instead of a dead 404
-   - legacy *.html URLs (multi-page era) redirect to the clean routes
-   - every route change: scroll top (unless a #hash anchor is targeted),
-     set body[data-page], and fire the Meta Pixel PageView (admin-driven). */
 import { Suspense, useEffect } from 'react';
 import { Routes, Route, Navigate, useLocation, Link } from 'react-router-dom';
 import Layout from './components/Layout.jsx';
@@ -14,9 +7,6 @@ import HomePage from './pages/index.jsx';
 import SoonPage from './pages/soon.jsx';
 import NotFoundPage from './pages/not-found.jsx';
 
-/* Task 57 — branded holding screen: shown in place of the whole storefront
-   while Admin → Settings → Maintenance Mode is ON. The flag rides the boot
-   content call, so the store closes on the next page load — no deploy. */
 export function MaintenanceScreen({ message }) {
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-bg px-6 text-center" id="maintenanceScreen" data-testid="maintenance">
@@ -83,14 +73,14 @@ const LEGACY = {
   '/track-order.html': '/track-order',
 };
 
-let booted = false; /* first render: initPixel owns the initial PageView */
+let booted = false;
 
 function RouteEffects() {
   const { pathname, hash } = useLocation();
 
   useEffect(() => {
     document.body.dataset.page = PAGE_BY_PATH[pathname] || 'page';
-    if (!booted) { booted = true; return; } /* first load */
+    if (!booted) { booted = true; return; }
     fbTrack('PageView');
     if (!hash) window.scrollTo({ top: 0, behavior: 'auto' });
   }, [pathname]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -112,8 +102,6 @@ function RouteEffects() {
 }
 
 export default function App() {
-  /* Task 57 — the maintenance gate lives INSIDE Layout (below ContentProvider);
-     App itself renders outside that provider, so no context reads here. */
   return (
     <>
       <RouteEffects />
@@ -122,8 +110,6 @@ export default function App() {
           <Route key={from} path={from} element={<Navigate to={to} replace />} />
         ))}
         <Route element={<Layout />}>
-          {/* the registry IS the route table — built pages load lazy,
-              future pages render the honest SoonPage */}
           {ROUTES.map((r) => {
             if (r.path === '/') {
               return <Route key={r.path} path={r.path} element={<HomePage />} />;

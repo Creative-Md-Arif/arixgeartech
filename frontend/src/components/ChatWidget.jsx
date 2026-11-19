@@ -1,13 +1,3 @@
-/* ArixGear component — AI assistant + Live Chat widget (Phase 9).
-   ONE floating launcher, two tabs:
-     🤖 AI Help   — database-grounded assistant (Bangla/English, follow-ups,
-                    product cards → PDP, order status, deals, policies).
-                    Zero-invention: answers come from the RAG layer over the
-                    store's own MongoDB; without an LLM key it still answers
-                    via the deterministic grounded composer.
-     ✉️ Message   — the classic contact form → admin Messages inbox.
-   WhatsApp / Telegram direct links stay on the launcher stack.
-   AI config is admin-managed (Admin → AI Console → Settings). */
 import { useEffect, useRef, useState } from 'react';
 import { getChat } from '../services/settings.js';
 import { sendMessage } from '../services/messages.js';
@@ -53,7 +43,7 @@ function ProductCard({ p, onOpen }) {
 }
 
 export default function ChatWidget() {
-  const { isBn } = useLang(); // Task 58 — Bengali greeting
+  const { isBn } = useLang();
   const { openPDP } = useUI();
   const [cfg, setCfg] = useState(null);          /* null = loading */
   const [aiCfg, setAiCfg] = useState(null);
@@ -121,7 +111,7 @@ export default function ChatWidget() {
 
   return (
     <div className="chat-widget fixed bottom-4 right-4 z-[900] flex flex-col items-end gap-2.5 md:bottom-6 md:right-6" id="chatWidget">
-      {/* chat panel */}
+
       {open ? (
         <div className="chat-panel w-in(92vw,340px)] border border-line bg-panel shadow-2xl shadow-black/60" id="chatPanel" ref={panelRef}>
           <div className="flex items-center justify-between border-b border-line bg-bg2 px-4 py-3">
@@ -139,7 +129,7 @@ export default function ChatWidget() {
             </div>
           ) : null}
 
-          {/* ── AI tab ── */}
+
           {tab === 'ai' && aiEnabled ? (
             <div className="flex h-[380px] flex-col" id="aiChat">
               <div ref={scRef} className="flex-1 space-y-2.5 overflow-y-auto px-3.5 py-3">
@@ -194,7 +184,7 @@ export default function ChatWidget() {
             </div>
           ) : null}
 
-          {/* ── contact tab (classic form) ── */}
+
           {tab === 'contact' || !aiEnabled ? (
             <div className="px-4 py-4">
               <p className="chat-greeting border border-line bg-bg2 px-3.5 py-3 text-[.85rem] leading-relaxed text-muted" id="chatGreeting">{(isBn && cfg?.greetingBn) ? cfg.greetingBn : (cfg?.greeting || 'Assalamu alaikum! How can we help?')}</p>
@@ -219,7 +209,7 @@ export default function ChatWidget() {
                 </form>
               )}
 
-              {/* direct channels — admin-managed WhatsApp / Telegram */}
+              {/*direct channels — admin-managed WhatsApp / Telegram*/}
               {waHref || tgHref ? (
                 <div className="mt-4 border-t border-line pt-3">
                   <p className="mb-2 font-cond text-[.7rem] uppercase tracking-[.2em] text-dim">Or chat directly</p>
@@ -244,7 +234,6 @@ export default function ChatWidget() {
         </div>
       ) : null}
 
-      {/* floating action stack */}
       <div className="flex items-center gap-2.5">
         {waHref && !open ? (
           <a href={waHref} target="_blank" rel="noopener noreferrer" id="waBtn" aria-label="Chat on WhatsApp" title="WhatsApp"

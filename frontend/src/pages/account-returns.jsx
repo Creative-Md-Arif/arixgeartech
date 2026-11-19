@@ -1,7 +1,3 @@
-/* ArixGear page — /account/returns (Phase 6b).
-   RMA ledger across the account's orders (GET /orders/my/returns): status rail
-   requested → approved → refunded (rejected shows the reason), items snapshot,
-   refund amounts, and the flow guide for opening a new request. */
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { myReturns } from '../services/orders.js';
@@ -13,7 +9,7 @@ import { AcctShell, Gate, RETURN_REASONS, btnPrimary, miniBtn, rmaTone, dFmt } f
 export default function Page() {
   useSEO('account-returns', { title: 'Returns & Refunds — arixgear.tech', robots: 'noindex,follow' });
   const { t } = useLang();
-  const [items, setItems] = useState(null); /* null loading · [] none */
+  const [items, setItems] = useState(null);
 
   useEffect(() => {
     let dead = false;
@@ -31,7 +27,7 @@ export default function Page() {
   return (
     <Gate title="Returns & Refunds">
       <AcctShell active="/account/returns" title={t('Returns & Refunds')} lede={t('Delivered orders can be returned within 7 days — open the request from the order page, follow it here.')}>
-        {/* flow guide */}
+
         <div className="mb-6 grid gap-2 sm:grid-cols-4" id="rmaGuide">
           {[
             [t('Requested'), t('Pickup arranged within 48h'), 'text-amber border-amber/40'],

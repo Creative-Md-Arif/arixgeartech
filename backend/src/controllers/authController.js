@@ -269,7 +269,7 @@ exports.register = async (req, res, next) => {
 // POST /api/auth/verify-email — { email, code } → activates account, awards referral, claims guest orders
 exports.verifyEmail = async (req, res, next) => {
   try {
-    const { email, code } = req.body || {};
+    const { email, code, loginAfterVerify = true } = req.body || {};
     if (!email || !code) return res.status(400).json({ message: 'Email and verification code are required' });
     const user = await User.findOne({ email: String(email).toLowerCase().trim() })
       .select('+emailOtpHash +emailOtpExpires +emailOtpAttempts');
@@ -279,9 +279,9 @@ exports.verifyEmail = async (req, res, next) => {
     /* already verified → idempotent success (lets the user straight in) */
     if (user.emailVerified) {
       const linkedOrders = await linkGuestOrders(user);
-      const token = user.signToken();
-      setSessionCookie(res, token);
-      return res.json({ token, user: user.toSafeJSON(), linkedOrders, alreadyVerified: true, message: 'Email already verified' });
+      const token = loginAfterVerify ? user.signToken() : null;
+      if (token) setSessionCookie(res, token);
+      return res.json({ ...(token ? { token } : {}), user: user.toSafeJSON(), linkedOrders, alreadyVerified: true, message: 'Email already verified' });
     }
     if (!user.emailOtpHash || !user.emailOtpExpires || user.emailOtpExpires < new Date()) {
       return res.status(400).json({ ...invalid, needsResend: true });
@@ -303,9 +303,9 @@ exports.verifyEmail = async (req, res, next) => {
     await awardDeferredReferral(user);
     await user.save({ validateBeforeSave: false });
     const linkedOrders = await linkGuestOrders(user);
-    const token = user.signToken();
-    setSessionCookie(res, token);
-    res.json({ token, user: user.toSafeJSON(), linkedOrders, message: 'Email verified — welcome to ArixGear' });
+    const token = loginAfterVerify ? user.signToken() : null;
+    if (token) setSessionCookie(res, token);
+    res.json({ ...(token ? { token } : {}), user: user.toSafeJSON(), linkedOrders, message: 'Email verified — welcome to ArixGear' });
   } catch (e) { next(e); }
 };
 

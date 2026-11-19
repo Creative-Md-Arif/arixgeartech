@@ -1,6 +1,3 @@
-/* ArixGear page — /blog/:slug — single Journal post (Task 47).
-   Cover, tag chips, meta, paragraphs split on blank lines (plain text —
-   zero HTML injection), view-bump on the API side, related posts footer. */
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { getPost } from '../services/blog.js';
@@ -15,7 +12,7 @@ export default function PostPage() {
   const { slug } = useParams();
   const [post, setPost] = useState(null);
   const [related, setRelated] = useState([]);
-  const [state, setState] = useState('loading'); // loading | ok | missing
+  const [state, setState] = useState('loading');
   const [reload, setReload] = useState(0);
 
   useEffect(() => {
@@ -39,7 +36,7 @@ export default function PostPage() {
     image: post && post.cover ? post.cover : undefined,
   });
 
-  /* Task 58 — BN mode reads the Bengali body when present */
+  /*BN mode reads the Bengali body when present*/
   const bodyTxt = post ? (isBn && post.bodyBn ? post.bodyBn : post.body) : '';
   const paras = bodyTxt ? String(bodyTxt).split(/\n\s*\n/).map((s) => s.trim()).filter(Boolean) : [];
 
@@ -58,7 +55,7 @@ export default function PostPage() {
         {state === 'missing' && (
           <div className="border border-dashed border-line2 px-8 py-16 text-center" data-testid="postMissing">
             <h1 className="font-disp text-[2rem] uppercase text-txt">Post Not Found</h1>
-            <p className="mt-2 text-muted">The piece moved or was never forged.</p>
+            <p className="mt-2 text-muted">The piece moved or was never created.</p>
             <Link to="/blog" className="mt-6 inline-block bg-acc px-6 py-3 font-head text-[.75rem] font-extrabold uppercase tracking-[.2em] text-black transition hover:bg-acc2">Back to the Journal</Link>
           </div>
         )}

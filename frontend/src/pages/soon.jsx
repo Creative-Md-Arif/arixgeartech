@@ -1,6 +1,4 @@
-/* ArixGear — "launching" panel for registered routes that ship in a later
-   phase (see src/routes.jsx). Deliberately honest: says what it is, when it
-   lands, and offers the live catalog paths instead of pretending to be a page. */
+/*ArixGear — "launching" panel for registered routes that ship in a later phase (see src/routes.jsx). Deliberately honest: says what it is, when it lands, and offers the live catalog paths instead of pretending to be a page.*/
 import { Link } from 'react-router-dom';
 import { PHASE_LABEL } from '../routes.jsx';
 

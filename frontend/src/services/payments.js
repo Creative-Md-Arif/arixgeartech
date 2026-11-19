@@ -1,12 +1,3 @@
-/* ArixGear services — payments (Task 40): checkout method availability +
-   SSLCOMMERZ gateway lifecycle.
-   Step 3 audit — this file had drifted into three endpoints that NEVER existed
-   on the backend (GET /payments/methods · POST /payments/gateway/init ·
-   GET /payments/gateway/status/:no — every call would have 404'd). Nothing
-   imported it (checkout.jsx uses services/orders.js initPayment + the
-   settings service), so the drift stayed invisible. The exports are kept and
-   repointed at the REAL consolidated endpoints so the next consumer starts
-   from a working surface instead of resurrecting the 404s. */
 import { api, API_BASE } from './http.js';
 
 /* Which payment methods the admin has switched ON right now — public store

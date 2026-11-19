@@ -268,6 +268,7 @@ router.delete('/brands/:id', P('brands'), audit('delete', 'brand'), brandAdmin.r
 
 /* customers (module: customers) */
 router.get('/customers', P('customers'), admin.customers);
+router.delete('/customers/:id', P('customers'), audit('delete', 'customer'), admin.deleteCustomer);
 router.put('/customers/:id/tags', P('customers'), audit('update', 'customer', { label: (req) => `CRM tags/note — ${req.body?.tags ? 'tags ' + req.body.tags : 'note'}` }), admin.customerTags); // Task 57 — private CRM layer
 router.post('/customers/:id/reset-password', P('customers'), audit('reset-password', 'customer'), admin.resetCustomerPassword); // ERP-assisted reset link
 

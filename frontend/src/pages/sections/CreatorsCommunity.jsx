@@ -1,5 +1,4 @@
-/* Homepage community section. Content is generated from approved reviews and
-   delivered-order aggregates; no testimonial cards are stored in HomeSection. */
+/*Homepage community section. Content is generated from approved reviews and delivered-order aggregates; no testimonial cards are stored in HomeSection.*/
 import { useEffect, useState } from "react";
 import { useContent } from "../../store/content.jsx";
 import { pick, pickArr, useLang } from "../../lib/i18n.jsx";

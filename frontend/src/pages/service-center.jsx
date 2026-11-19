@@ -1,6 +1,3 @@
-/* ArixGear page — /service-center (Phase 6d).
-   Walk-in network: active centers from GET /service/centers grouped by city,
-   plus the two self-service paths (warranty registration, ticket desk). */
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { listCenters } from '../services/service.js';
@@ -14,7 +11,7 @@ export default function Page() {
     description: 'Walk-in service centers for arixgear.tech customers — diagnostics, repairs and warranty claims, addresses and hours by city.',
   });
   const { t } = useLang();
-  const [centers, setCenters] = useState(null); /* null loading · [] none */
+  const [centers, setCenters] = useState(null);
 
   useEffect(() => {
     let dead = false;
@@ -24,7 +21,7 @@ export default function Page() {
     return () => { dead = true; };
   }, []);
 
-  /* group by city — walk-in pages read city-first in Bangladesh */
+  /*group by city — walk-in pages read city-first in Bangladesh*/
   const byCity = useMemo(() => {
     const map = new Map();
     (centers || []).forEach((c) => {

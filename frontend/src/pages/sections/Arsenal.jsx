@@ -1,5 +1,4 @@
-/* ArixGear section — arsenal grid with filter tabs (#gear / #gearGrid).
-   Head copy from the admin home-section row; no row / no products → render null. */
+/*arsenal grid with filter tabs (#gear / #gearGrid). Head copy from the admin home-section row; no row / no products → render null.*/
 import { useMemo, useState } from 'react';
 import { useCatalog } from '../../store/catalog.jsx';
 import { useContent } from '../../store/content.jsx';
@@ -8,7 +7,7 @@ import { pick, useLang } from '../../lib/i18n.jsx';
 import { SectionHead, OutlineTitle } from './Head.jsx';
 
 export default function Arsenal() {
-  useLang(); // Task 58 — subscribe so BN toggles re-render pick() labels
+  useLang();  // subscribe so BN toggles re-render pick() labels
   const { sectionCfg, sectionVisible, homeSections } = useContent();
   const { PRODUCTS, BY_ID, CATS } = useCatalog();
   const [f, setF] = useState('All');
@@ -20,7 +19,7 @@ export default function Arsenal() {
 
   const list = useMemo(() => {
     if (f !== 'All') return PRODUCTS.filter((p) => p.cat === f);
-    /* admin-curated order on All (renderGear parity) */
+    /*admin-curated order on All (renderGear parity)*/
     const slugs = arsenalCfg.products;
     if (Array.isArray(slugs) && slugs.length) {
       const l = slugs.map((s) => BY_ID[s]).filter(Boolean);
@@ -36,7 +35,7 @@ export default function Arsenal() {
       <div className="container mx-auto w-[92%]">
         <SectionHead
           eyebrow={pick(sec, 'subtitle')}
-          title={sec.title ? <OutlineTitle text={pick(sec, 'title')} /> : null} // Task 58
+          title={sec.title ? <OutlineTitle text={pick(sec, 'title')} /> : null}
           right={
             <div id="ftabs" className="ftabs flex flex-wrap gap-[.5rem]">
               {tabs.map((t) => (

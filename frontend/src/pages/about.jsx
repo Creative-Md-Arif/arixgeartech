@@ -1,11 +1,6 @@
-/* ArixGear page — about / brand story (/about).
-   100% admin-driven: every text block renders from useContent().content.about
-   (Admin → Content → About page; defaults served by the backend). A block whose
-   data is absent simply does not render — nothing is hardcoded here. */
 import { Link } from 'react-router-dom';
 import { useContent } from '../store/content.jsx';
 
-/* ---------- shared primitives ---------- */
 const Eyebrow = ({ children }) => (
   <p className="font-cond font-semibold uppercase tracking-[.45em] text-acc text-[.82rem] flex items-center gap-3">
     <i className="not-italic inline-block h-0.5 w-9 bg-acc" />{children}
@@ -15,10 +10,10 @@ const Eyebrow = ({ children }) => (
 const btnPrimary = 'inline-flex items-center justify-center gap-2.5 bg-acc px-8 py-4 font-head font-extrabold text-[.8rem] uppercase tracking-[.2em] text-black transition-all duration-300 clip-notch hover:bg-acc2 hover:-translate-y-0.5';
 const btnGhost = 'inline-flex items-center justify-center gap-2.5 border border-line2 bg-white/[.03] px-8 py-4 font-head font-extrabold text-[.8rem] uppercase tracking-[.2em] text-txt transition-all duration-300 clip-notch hover:border-silver hover:bg-white/[.07] hover:-translate-y-0.5';
 
-/* admin content may carry <b> HTML (legacy data-cs-type="html") — strip tags, render safe */
+/*admin content may carry <b> HTML (legacy data-cs-type="html") — strip tags, render safe*/
 const stripTags = (s) => String(s).replace(/<[^>]*>/g, '');
 
-/* outline the last word of each line (port of site-content.outlineTitle) */
+/*outline the last word of each line (port of site-content.outlineTitle)*/
 const OutlineLines = ({ text }) => (
   <>
     {String(text).split(/\n/).filter((l) => l.trim()).map((ln, i) => {
@@ -32,7 +27,6 @@ const OutlineLines = ({ text }) => (
   </>
 );
 
-/* outlined last word of a single line */
 const OutlineTitle = ({ text }) => {
   const w = String(text || '').trim().split(' ').filter(Boolean);
   if (!w.length) return null;
@@ -40,7 +34,7 @@ const OutlineTitle = ({ text }) => {
   return <>{w.join(' ')}{w.length ? ' ' : ''}<span className="text-outline">{last}</span></>;
 };
 
-/* quality-checkpoint icons — presentation only (theme SVGs, positions by index) */
+/*quality-checkpoint icons — presentation only (theme SVGs, positions by index)*/
 const QC_ICONS = [
   <svg key="0" viewBox="0 0 24 24" className="mb-4 h-[26px] w-[26px] stroke-acc fill-none" strokeWidth="1.6"><path d="M12 2l3 6 6 .9-4.5 4.2 1.1 6-5.6-3-5.6 3 1.1-6L3 8.9l6-.9z" /></svg>,
   <svg key="1" viewBox="0 0 24 24" className="mb-4 h-[26px] w-[26px] stroke-acc fill-none" strokeWidth="1.6"><path d="M14 3l7 7-9 9H5v-7z" /><path d="M14 3l4 4" /></svg>,
@@ -72,7 +66,6 @@ export default function Page() {
     <section id="page-about" className="py-16 md:py-24">
       <div className="container mx-auto w-[92%]">
 
-        {/* ---------- HERO ---------- */}
         <div className="relative mb-12 flex min-h-[52vh] items-end overflow-hidden border border-line">
           <img id="abImg" src="assets/hero-3.png" alt="Chalked hands gripping a barbell in a dark gym"
             className="absolute inset-0 h-full w-full object-cover [filter:contrast(1.12)_grayscale(.75)]" />
@@ -87,7 +80,6 @@ export default function Page() {
           </div>
         </div>
 
-        {/* ---------- STORY PROSE ---------- */}
         {prose.length > 0 && (
           <div className="max-w-[70ch] text-muted">
             {prose.map((p, i) => (
@@ -96,7 +88,6 @@ export default function Page() {
           </div>
         )}
 
-        {/* ---------- STATS STRIP ---------- */}
         {stats.length > 0 && (
           <div className="my-12 grid grid-cols-2 border border-line bg-panel lg:grid-cols-4">
             {stats.map((s, i) => (
@@ -108,7 +99,6 @@ export default function Page() {
           </div>
         )}
 
-        {/* ---------- TIMELINE ---------- */}
         {timeline.length > 0 && (
           <>
             <div className="mb-0">
@@ -132,7 +122,6 @@ export default function Page() {
           </>
         )}
 
-        {/* ---------- QUALITY SPLIT ---------- */}
         <div className="mt-10 grid items-stretch gap-5 lg:grid-cols-2">
           <div className="relative min-h-[300px] overflow-hidden border border-line md:min-h-[380px]">
             <img id="abImg2" src="assets/story-1.png" alt="Athlete mid-training wearing ArixGear gear"
@@ -164,7 +153,6 @@ export default function Page() {
           </div>
         </div>
 
-        {/* ---------- CTAs ---------- */}
         <div className="mt-12 flex flex-wrap gap-4">
           <Link to="/shop" className={btnPrimary}>Train the Catalog</Link>
           <Link to="/guides" className={btnGhost}>Read the Training Guides</Link>

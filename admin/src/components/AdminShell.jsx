@@ -2,7 +2,7 @@
    for the 34-module console, topbar + pills, theme + lang toggles.
    Groups persist their collapsed state in localStorage; sub-admins only see
    groups/modules granted to them; Team + Audit stay owner-only. */
-import { createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import React, { createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Link, Outlet, useLocation } from "react-router-dom";
 import { auth, logout, requireAuth } from "../lib/admin.js";
 import { getStats } from "../services/stats.js";

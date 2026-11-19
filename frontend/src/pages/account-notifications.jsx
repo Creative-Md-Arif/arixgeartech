@@ -1,6 +1,3 @@
-/* ArixGear page — /account/notifications (Phase 6b).
-   In-app bell history as a full page (latest 30, live unread count): order /
-   return / warranty events pushed by the backend notifier. */
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import * as notif from '../services/notifications.js';
@@ -19,7 +16,7 @@ const TONE = {
 export default function Page() {
   useSEO('account-notifications', { title: 'Notifications — arixgear.tech', robots: 'noindex,follow' });
   const { t } = useLang();
-  const [items, setItems] = useState(null); /* null loading */
+  const [items, setItems] = useState(null);
   const [unread, setUnread] = useState(0);
 
   const load = () => {
@@ -40,8 +37,7 @@ export default function Page() {
       .catch(() => {});
   };
 
-  /* notification.link rides the admin path (e.g. /admin/orders) — strip it for
-     customers: the row links to the matching storefront surface instead */
+  /*notification.link rides the admin path (e.g. /admin/orders) — strip it for customers: the row links to the matching storefront surface instead*/
   const href = (n) => {
     if (n.type === 'order' || n.type === 'cancel') return '/account/orders';
     if (n.type === 'return') return '/account/returns';

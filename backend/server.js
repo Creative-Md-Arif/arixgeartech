@@ -1,4 +1,5 @@
-require('dotenv').config();
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '.env') });
 const app = require('./app');
 const connectDB = require('./src/config/db');
 
@@ -76,6 +77,15 @@ if (!isVercel) {
         console.log(`   storefront  http://localhost:${PORT}/`);
         console.log(`   admin panel http://localhost:${PORT}/admin/`);
         console.log(`   realtime    ws://localhost:${PORT}/socket.io (JWT auth)\n`);
+      });
+      server.on('error', (e) => {
+        if (e.code === 'EADDRINUSE') {
+          console.error(`[server] Port ${PORT} is already in use. Stop the existing API process or set PORT to a free port.`);
+        } else {
+          console.error('[server] HTTP listener failed:', e.message);
+        }
+        if (aiImportRecoveryTimer) clearInterval(aiImportRecoveryTimer);
+        require('mongoose').connection.close().finally(() => process.exit(1));
       });
     })
     .catch((e) => {

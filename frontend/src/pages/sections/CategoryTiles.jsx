@@ -6,7 +6,7 @@ import { pick, useLang } from "../../lib/i18n.jsx";
 import { SectionHead, OutlineTitle } from "./Head.jsx";
 
 export default function CategoryTiles() {
-  useLang(); // Task 58 — subscribe so BN toggles re-render pick() labels
+  useLang();  // subscribe so BN toggles re-render pick() labels
   const { sectionVisible, homeSections } = useContent();
   const { CAT_OBJS } = useCatalog();
   const [broken, setBroken] = useState({});
@@ -16,11 +16,9 @@ export default function CategoryTiles() {
 
   const sec = homeSections.find((s) => s && s.key === "categories");
   if (!sec)
-    return null; /* no admin config → nothing to head the section with */
+    return null; /*no admin config → nothing to head the section with*/
 
-  /* Phase 2 (tree catalog): tiles are ROOT categories ordered by the admin
-     config; counts are live branch totals from /api/categories (productCount
-     includes every subcategory). No config → all roots, API order. */
+  /*(tree catalog): tiles are ROOT categories ordered by the admin config; counts are live branch totals from /api/categories (productCount includes every subcategory). No config → all roots, API order.*/
   const cfgSlugs = Array.isArray(sec.config && sec.config.categories)
     ? sec.config.categories
     : [];
@@ -54,12 +52,12 @@ export default function CategoryTiles() {
           {tiles.map((c) => (
             <Link
               key={c.slug}
-              className="cat-tile group relative flex h-[160px] flex-col overflow-hidden border border-line bg-panel transition-colors hover:border-line2 sm:h-[190px] lg:h-[230px]"
+              className="cat-tile group relative flex h-[140px] flex-col overflow-hidden border border-line bg-panel transition-colors hover:border-line2 sm:h-[170px] lg:h-[200px]"
               to={"/shop?cat=" + encodeURIComponent(c.slug)}
               data-cat={c.slug}
             >
               <i className="pointer-events-none absolute inset-x-0 top-0 z-[3] h-[3px] origin-left scale-x-0 bg-acc transition-transform duration-[450ms] ease-forge group-hover:scale-x-100" />
-              <div className="cat-image flex h-[105px] w-full items-center justify-center overflow-hidden bg-panel sm:h-[145px] lg:h-[170px]">
+              <div className="cat-image flex h-[85px] w-full items-center justify-center overflow-hidden bg-panel sm:h-[115px] lg:h-[140px]">
                 {broken[c.slug] ? (
                   <div className="h-full w-full bg-panel" />
                 ) : (
@@ -76,16 +74,16 @@ export default function CategoryTiles() {
                         setDbImageFailed((b) => ({ ...b, [c.slug]: true }));
                       else setBroken((b) => ({ ...b, [c.slug]: true }));
                     }}
-                      className="h-full w-full max-h-full max-w-full object-contain object-center p-2 [html:not(.light)_&]:invert"
+                      className="h-full w-full max-h-full max-w-full object-contain object-center p-3 sm:p-4 lg:p-5 [html:not(.light)_&]:invert"
                   />
                 )}
               </div>
               <div className="cat-info flex min-h-[55px] flex-1 flex-col items-center justify-center bg-panel px-2 py-2 text-center">
-                <p className="cat-name font-disp text-[.82rem] uppercase leading-[.95] text-txt transition-colors group-hover:text-acc sm:text-[1.05rem] lg:text-[1.25rem]">
+                <p className="cat-name font-disp text-[.72rem] uppercase leading-[.95] text-txt transition-colors group-hover:text-acc sm:text-[.9rem] lg:text-[1.05rem]">
                   {pick(c, "name")}
                 </p>
-                <p className="cat-count mt-1 font-cond text-[.58rem] font-semibold uppercase tracking-[.12em] text-dim lg:text-[.65rem]">
-                  {c.count} PRODUCTS 
+                <p className="cat-count mt-1 font-cond text-[.52rem] font-semibold uppercase tracking-[.12em] text-dim lg:text-[.6rem]">
+                  {c.count} PRODUCTS
                 </p>
               </div>
             </Link>

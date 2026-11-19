@@ -1,10 +1,3 @@
-/* ArixGear page — simulated SSLCOMMERZ checkout (Task 40).
-   Shown only when the admin gateway is enabled WITHOUT store credentials:
-   /payments/init then issues a local HMAC "session" and redirects here so the
-   full pay → validate → paid lifecycle stays testable in dev/QA. With real
-   credentials the customer never sees this page — they go to the actual
-   SSLCOMMERZ gateway instead. The sim tag in the URL is an HMAC issued by the
-   server; guessed URLs cannot flip an order to paid. */
 import { useSEO } from '../lib/seo.jsx';
 import { API_BASE } from '../services/http.js';
 import { useUI } from '../store/ui.jsx';

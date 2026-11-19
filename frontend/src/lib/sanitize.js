@@ -1,22 +1,4 @@
-/* ArixGear core — Step 3 security hardening (storefront audit).
-   Both helpers defend against ADMIN-authored values: a compromised admin
-   account (or a rogue subadmin with content permissions) must not be able to
-   run script on customer devices — the same doctrine guides.jsx adopted in
-   Task 57, now shared and hardened.
-
-   sanitizeHtml(html) — for dangerouslySetInnerHTML sinks.
-   Task 57's regex version had two bypasses, both closed here:
-     1. entity encoding — `javascript&colon;` / `&#106;avascript:` decode to a
-        working scheme AFTER the old regex ran → decode first via a textarea
-        (RCDATA: entities resolve, tags stay literal), then sanitize.
-     2. tag coverage — svg/math/base (and form) can carry loaders or hijack
-        clicks; they are stripped alongside script/iframe/object/embed/style.
-
-   safeHref(url, fallback) — for href={} and window.location sinks.
-   Only http(s):, mailto:, tel:, relative (/…) and in-page (#…) links survive;
-   anything else (javascript:, data:, vbscript:, unknown schemes) returns the
-   fallback so a poisoned banner/link can never execute or phish. */
-
+/* Sanitize admin-authored HTML and URLs before rendering them in the storefront. */
 export function sanitizeHtml(html) {
   let out = String(html || '');
   /* 1 — decode entities first so encoded schemes/tag names can't sneak through */

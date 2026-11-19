@@ -1,4 +1,3 @@
-/* ArixGear component — newsletter strip + footer (content admin-driven) */
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useContent } from '../store/content.jsx';
@@ -25,13 +24,13 @@ export function Newsletter() {
       if (r && r.coupon && r.coupon.code) {
         setCoupon(r.coupon);
         setCopied(false);
-        toast(t('Welcome to the Forge'), r.alreadySubscribed ? t('Already on the list — your 10% code works at checkout.') : t('Subscribed — your 10% code is ready.'));
+        toast(t('Welcome to the ArixGear'), r.alreadySubscribed ? t('Already on the list — your 10% code works at checkout.') : t('Subscribed — your 10% code is ready.'));
       } else {
-        toast(t('Welcome to the Forge'), nl.note || '');
+        toast(t('Welcome to the ArixGear'), nl.note || '');
       }
       setEmail('');
     } catch (err) {
-      if (err && err.offline) { toast(t('Welcome to the Forge'), nl.note || ''); setEmail(''); }
+      if (err && err.offline) { toast(t('Welcome to the ArixGear'), nl.note || ''); setEmail(''); }
       else toast(t('Not sent'), (err && err.message) || t('Something went wrong — try again.'));
     } finally { setBusy(false); }
   };

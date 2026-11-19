@@ -1,6 +1,3 @@
-/* ArixGear component — PDP overlay: gallery, variants (size-based pricing,
-   per-color images), urgency, zoom, sticky bar, reviews + Q&A, related products.
-   Reviews/questions/related are all live API / catalog driven — zero hardcode. */
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams, Link } from "react-router-dom";
 import {
@@ -10,6 +7,7 @@ import {
   adaptOne,
 } from "../store/catalog.jsx";
 import { useStore } from "../store/store.jsx";
+import { useContent } from "../store/content.jsx";
 import { money } from "../lib/format.js";
 import { fbTrack } from "../lib/pixel.js";
 import { usePdpSEO } from "../lib/seo.jsx";
@@ -46,7 +44,7 @@ const revDate = (s) => {
 
 /* Size Guide — admin-managed (Admin → Settings → Size Guide).
    Fetched once per session and cached at module level; every PDP open reuses it.
-   Phase 2: no hardcoded fitness default — when nothing is configured the
+   no hardcoded fitness default — when nothing is configured the
    accordion simply hides (see guideInfo fallback). GUIDE_DEFAULT survives only
    as a render-safety net for the transient pre-fetch tick. */
 const GUIDE_DEFAULT = {
@@ -69,7 +67,7 @@ const sizeGuideOnce = () => {
   return _sizeGuideP;
 };
 
-/* Step 7 — shared spec-value formatter (English/number/boolean/array → display
+/* shared spec-value formatter (English/number/boolean/array → display
    string). Used by the grouped spec table AND the gallery badge overlay so
    both render a value identically (number fields append their unit). */
 const fmtSpecVal = (v, f, t) => {
@@ -90,11 +88,12 @@ export default function PDP() {
   const navigate = useNavigate();
   const { BY_ID, PRODUCTS } = useCatalog();
   const { addToCart, wish, toggleWish } = useStore();
+  const { FREE_SHIP } = useContent();
 
-  /* Phase 2 — routed PDP: products beyond the home feed (deep links, search
+  /* routed PDP: products beyond the home feed (deep links, search
      suggestions) are fetched by slug and run through the SAME adapter
      pipeline; the API's related payload feeds the "Complete the kit" row.
-     Step 5 — the detail fetch ALWAYS runs (even for feed-cached products):
+     the detail fetch ALWAYS runs (even for feed-cached products):
      the response carries the category's resolved specSchema which the list
      projection can't include. */
   const [remote, setRemote] = useState(null);
@@ -127,7 +126,7 @@ export default function PDP() {
     };
   }, [slug]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  /* Task 27 — live stock re-check: the mirror snapshot can go stale while the
+  /* live stock re-check: the mirror snapshot can go stale while the
      shopper reads the page; /stock gives the honest per-size availability */
   const [live, setLive] = useState(null);
   useEffect(() => {
@@ -146,11 +145,11 @@ export default function PDP() {
     };
   }, [slug]);
 
-  const p = slug ? BY_ID[slug] || remote : null;
+  const p = slug ? remote || BY_ID[slug] : null;
   usePdpSEO(p, !!slug);
   const { t, isBn } = useLang();
 
-  /* Task 58 — bilingual display helpers (bn value when present, else English) */
+  /* bilingual display helpers (bn value when present, else English) */
   const pName = p ? (isBn && p.nameBn ? p.nameBn : p.name) : "";
   const pDesc = p ? (isBn && p.descBn ? p.descBn : p.desc) : "";
   const pCat = p ? (isBn && p.catBn ? p.catBn : t(p.cat)) : "";
@@ -161,7 +160,7 @@ export default function PDP() {
         ? p.specs
         : [];
 
-  /* Step 5 — GROUPED SPECS from the category's live schema + the product's
+  /* GROUPED SPECS from the category's live schema + the product's
      canonical specValues. Falls back to the legacy flat table when either the
      schema or the values are missing (old docs, schema-less categories).
      hideEmptySpecs drops rows whose value is empty; showInDetails=false and
@@ -192,7 +191,7 @@ export default function PDP() {
             k: isBn && f.labelBn ? f.labelBn : f.label,
             v: fmt(hit.v, f),
             icon: f.icon || "",
-          }); // Step 6 — icon rides the row
+          });
         }
         if (rows.length)
           groups.push({
@@ -227,7 +226,7 @@ export default function PDP() {
       : [];
   }, [p, specSchema, specRows, isBn]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  /* Step 5 — key features checklist (bn twins preferred in bn mode) */
+  /* key features checklist (bn twins preferred in bn mode) */
   const featureList = useMemo(() => {
     if (!p) return [];
     const en = (p.features || []).filter(Boolean);
@@ -236,7 +235,7 @@ export default function PDP() {
     return en;
   }, [p, isBn]);
 
-  /* Step 7 — GALLERY SPEC BADGES (#9): the schema's showOnCard chips surface
+  /* GALLERY SPEC BADGES (#9): the schema's showOnCard chips surface
      as overlay captions on the main product image. Server-decorated payloads
      win (decorateCards); otherwise the chips are computed from the live
      schema + specValues — the PDP always carries both. Same 3-chip cap and
@@ -274,7 +273,7 @@ export default function PDP() {
     return out;
   }, [p, specSchema]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  /* Step 7 — DENSE SPEC-SHEET LAYOUT (#8): when a product carries MORE THAN 20
+  /* DENSE SPEC-SHEET LAYOUT (#8): when a product carries MORE THAN 20
      visible spec rows, the classic thin table rows become a wall of lines;
      large schemas switch to a two-column grid where each cell stacks label
      over value (the dense spec-sheet look). Small schemas keep the classic
@@ -301,8 +300,10 @@ export default function PDP() {
   /* live reviews + Q&A for this product */
   const [revs, setRevs] = useState([]);
   const [revSummary, setRevSummary] =
-    useState(null); /* { avg, total, dist:{1..5} } — Task 29 */
+    useState(null); /* { avg, total, dist:{1..5} } — */
   const [revSort, setRevSort] = useState("new");
+  const [revPage, setRevPage] = useState(1);
+  const [revPages, setRevPages] = useState(0);
   const [revPhotos, setRevPhotos] = useState(
     [],
   ); /* File[] ≤3 attached to the form */
@@ -313,6 +314,8 @@ export default function PDP() {
   ); /* { revId: votedBool } local marker */
   const [qas, setQas] = useState([]);
   const [qaSort, setQaSort] = useState("new");
+  const [qaPage, setQaPage] = useState(1);
+  const [qaPages, setQaPages] = useState(0);
   const [qaVoted, setQaVoted] = useState(
     {},
   ); /* { questionId: votedBool } local marker */
@@ -349,10 +352,14 @@ export default function PDP() {
     setRevForm({ name: "", rating: 5, text: "" });
     setQaForm({ name: "", text: "" });
     setRevSummary(null);
+    setRevPage(1);
+    setRevPages(0);
     setRevPhotos([]);
     setEditRev(null);
     setVotedRevs({});
     setRevSort("new");
+    setQaPage(1);
+    setQaPages(0);
     setQaVoted({});
     setQaSort("new");
     /* Meta Pixel: ViewContent — product detail opened */
@@ -369,12 +376,13 @@ export default function PDP() {
   useEffect(() => {
     if (!slug) return;
     let dead = false;
-    const loadRevs = (sort) =>
-      listReviews(slug, { sort })
+    const loadRevs = (sort, page) =>
+      listReviews(slug, { sort, page })
         .then((d) => {
           if (!dead) {
             setRevs(d.items || []);
             setRevSummary(d.summary || null);
+            setRevPages(d.pagination?.pages || 0);
           }
         })
         .catch(() => {
@@ -383,10 +391,13 @@ export default function PDP() {
             setRevSummary(null);
           }
         });
-    loadRevs(revSort);
-    listQuestions(slug, { sort: qaSort })
+    loadRevs(revSort, revPage);
+    listQuestions(slug, { sort: qaSort, page: qaPage })
       .then((d) => {
-        if (!dead) setQas(d.items || []);
+        if (!dead) {
+          setQas(d.items || []);
+          setQaPages(d.pagination?.pages || 0);
+        }
       })
       .catch(() => {
         if (!dead) setQas([]);
@@ -394,7 +405,7 @@ export default function PDP() {
     return () => {
       dead = true;
     };
-  }, [slug, revSort, qaSort]);
+  }, [slug, revSort, revPage, qaSort, qaPage]);
 
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = 0;
@@ -426,7 +437,7 @@ export default function PDP() {
       : [];
   }, [p, PRODUCTS, remoteRelated]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  /* Task 32 — THREE-TIER resolution (hooks stay ABOVE the early return):
+  /* THREE-TIER resolution (hooks stay ABOVE the early return):
        1. product custom table  (mode=custom; enabled=false → guide hidden)
        2. category table        (matches p.catSlug; enabled=false → hidden)
        3. global table          (Settings → Size Guide)
@@ -442,7 +453,7 @@ export default function PDP() {
         noteBn: g.noteBn || "",
         headers: g.headers,
         rows: g.rows.map((r) => (Array.isArray(r) ? r : [r]).slice(0, w)),
-      }; // Task 58 — Bn twins ride along
+      };
     };
     const valid = (g) =>
       g &&
@@ -469,13 +480,13 @@ export default function PDP() {
     if (gl && gl.enabled === false)
       return { on: false, source: "global-off", guide: null };
     if (valid(gl)) return { on: true, source: "global", guide: norm(gl) };
-    /* Phase 2 reset — no fitness default table: tech products show the guide
+    /* reset — no fitness default table: tech products show the guide
        accordion only when admin configured one (product → category → global) */
     return { on: false, source: "none", guide: null };
   }, [p, sgAll]);
   const guideOn = guideInfo.on;
   const guide = guideInfo.guide || GUIDE_DEFAULT;
-  /* Task 56-b — product not in the cached catalog (direct link / fresh seed):
+  /* product not in the cached catalog (direct link / fresh seed):
      pulse a PDP-shaped skeleton while the remote fetch lands instead of a
      dead overlay. */
   if (!p) {
@@ -531,7 +542,7 @@ export default function PDP() {
     );
   }
 
-  /* Task 27 — live stock wins over the mirror snapshot when the size is known */
+  /* live stock wins over the mirror snapshot when the size is known */
   const stockOf = (x) => {
     if (live && live.sizeStocks && live.sizeStocks.length) {
       const hit = live.sizeStocks.find((y) => y.s === x.s);
@@ -550,10 +561,11 @@ export default function PDP() {
   };
 
   const refreshRevs = () =>
-    listReviews(slug, { sort: revSort })
+    listReviews(slug, { sort: revSort, page: revPage })
       .then((d) => {
         setRevs(d.items || []);
         setRevSummary(d.summary || null);
+        setRevPages(d.pagination?.pages || 0);
       })
       .catch(() => {});
 
@@ -597,7 +609,7 @@ export default function PDP() {
     }
   };
 
-  /* Task 29 — owner edit (back to pending) / delete / helpful vote */
+  /* owner edit (back to pending) / delete / helpful vote */
   const saveEdit = async () => {
     if (!editRev || revBusy) return;
     setRevBusy(true);
@@ -641,9 +653,7 @@ export default function PDP() {
         ),
       );
       setVotedRevs((v) => ({ ...v, [revId]: d.voted }));
-    } catch (err) {
-      /* vote failures never break the PDP */
-    }
+    } catch (err) {}
   };
 
   const submitQuestion = async (e) => {
@@ -668,8 +678,11 @@ export default function PDP() {
       });
       setQaForm({ name: "", text: "" });
       /* refresh so logged-in askers immediately see their question as "pending" */
-      listQuestions(slug, { sort: qaSort })
-        .then((dd) => setQas(dd.items || []))
+      listQuestions(slug, { sort: qaSort, page: qaPage })
+        .then((dd) => {
+          setQas(dd.items || []);
+          setQaPages(dd.pagination?.pages || 0);
+        })
         .catch(() => {});
     } catch (err) {
       setQaMsg({ ok: false, text: err.message });
@@ -688,9 +701,7 @@ export default function PDP() {
         ),
       );
       setQaVoted((v) => ({ ...v, [qaId]: d.voted }));
-    } catch (_e) {
-      /* silent — vote is cosmetic */
-    }
+    } catch (_e) {/*silent — vote is cosmetic*/}
   };
 
   /* Size Guide table rows only — title/note/enabled resolved above (hook order safe) */
@@ -734,7 +745,7 @@ export default function PDP() {
         className="pdp-grid container mx-auto grid w-[92%] min-w-0 gap-6 py-6 sm:gap-8 sm:py-8 lg:grid-cols-2 lg:gap-10"
         id="pdpGrid"
       >
-        {/* gallery */}
+
         <div className="pdp-gallery min-w-0">
           <div
             className={
@@ -774,7 +785,7 @@ export default function PDP() {
                 transformOrigin: origin,
               }}
             />
-            {/* Step 7 — showOnCard chips as overlay captions on the hero image (#9) */}
+            {/*showOnCard chips as overlay captions on the hero image (#9)*/}
             {galleryBadges.length ? (
               <div
                 className="absolute bottom-4 left-4 z-10 flex max-w-[85%] flex-wrap gap-1.5"
@@ -822,7 +833,6 @@ export default function PDP() {
           </div>
         </div>
 
-        {/* info */}
         <div className="pdp-info min-w-0">
           <p
             className="pdp-cat font-cond text-[.8rem] uppercase tracking-[.3em] text-acc"
@@ -886,14 +896,38 @@ export default function PDP() {
               </span>
             ) : null}
           </div>
-          <p
-            className="pdp-desc mt-4 break-words text-[.95rem] leading-relaxed text-muted"
-            id="pdpDesc"
-          >
-            {pDesc}
-          </p>
+          {featureList.length ? (
+            <div className="mt-5 border border-line bg-panel" id="pdpFeatures">
+              <div className="border-b border-line px-5 py-3 font-head text-[.8rem] font-bold uppercase tracking-[.18em]">
+                {t("Key Features")}
+              </div>
+              <ul
+                className="grid grid-cols-1 gap-x-6 px-5 py-4 md:grid-cols-2"
+                data-featurelist="1"
+              >
+                {featureList.map((f, i) => (
+                  <li
+                    key={i}
+                    className="flex items-start gap-2.5 py-1 text-[.88rem] text-txt"
+                  >
+                    <svg
+                      viewBox="0 0 24 24"
+                      className="mt-[3px] h-4 w-4 shrink-0 text-acc"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.2"
+                    >
+                      <path d="M5 13l4 4L19 7" />
+                    </svg>
+                    <span>{f}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
 
-          {/* colors — selecting a color switches the main image when that color carries its own shot */}
+          {/*colors — selecting a color switches the main image when that color carries its own shot*/}
+          {p.colors?.length ? <>
           <div className="pdp-optlabel mt-6 flex flex-wrap justify-between gap-x-4 gap-y-1 font-cond text-[.8rem] uppercase tracking-[.2em] text-muted">
             <span>
               Color —{" "}
@@ -923,18 +957,18 @@ export default function PDP() {
               />
             ))}
           </div>
+          </> : null}
 
-          {/* sizes — price updates with the selected size */}
+          {/*sizes — price updates with the selected size*/}
+          {p.sizes?.length ? <>
           <div className="pdp-optlabel mt-6 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 font-cond text-[.8rem] uppercase tracking-[.2em] text-muted">
             <span id="pdpSizeLabel">
-              {p.sizes
-                ? t("Select {v}", {
-                    v:
-                      isBn && p.variantLabelBn
-                        ? p.variantLabelBn
-                        : p.variantLabel || t("Size"),
-                  })
-                : t("Size — One Size")}
+              {t("Select {v}", {
+                v:
+                  isBn && p.variantLabelBn
+                    ? p.variantLabelBn
+                    : p.variantLabel || t("Size"),
+              })}
             </span>
             {guideOn ? (
               <a
@@ -985,6 +1019,7 @@ export default function PDP() {
               );
             })}
           </div>
+          </> : null}
           <p
             className="low-urgency mt-3 min-h-5 font-cond text-[.85rem] tracking-[.05em] text-acc"
             id="pdpUrgency"
@@ -1002,7 +1037,6 @@ export default function PDP() {
             ) : null}
           </p>
 
-          {/* buy row */}
           <div className="pdp-buyrow mt-6 grid grid-cols-2 gap-3 xl:flex xl:items-stretch">
             <div className="col-span-2 grid grid-cols-2 items-stretch gap-3 xl:contents">
             <div className="qty w-fit flex flex-none items-center border border-line2">
@@ -1042,7 +1076,7 @@ export default function PDP() {
               ) : (
                 <>
                   {t("Add to Cart")}
-                
+
                 </>
               )}
             </button>
@@ -1085,9 +1119,8 @@ export default function PDP() {
             </div>
           </div>
 
-          {/* perks */}
           <div className="perks mt-6 space-y-2.5 border-y border-line py-5">
-            <div className="perk flex items-center gap-3 text-[.85rem] text-muted">
+            {FREE_SHIP > 0 ? <div className="perk flex items-center gap-3 text-[.85rem] text-muted">
               <svg
                 viewBox="0 0 24 24"
                 className="h-5 w-5 shrink-0 text-silver2"
@@ -1099,21 +1132,8 @@ export default function PDP() {
                 <circle cx="6" cy="19" r="1.6" />
                 <circle cx="17" cy="19" r="1.6" />
               </svg>{" "}
-              Free shipping on orders over ৳15,000 · dispatched in 24h
-            </div>
-            <div className="perk flex items-center gap-3 text-[.85rem] text-muted">
-              <svg
-                viewBox="0 0 24 24"
-                className="h-5 w-5 shrink-0 text-silver2"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.6"
-              >
-                <path d="M12 2l8 4v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6z" />
-                <path d="M9 12l2 2 4-4" />
-              </svg>{" "}
-              {t("30-day no-drama returns — unused items, full refund")}
-            </div>
+              {t("Free shipping on orders over")} {money(FREE_SHIP)}
+            </div> : null}
             {p.warranty &&
             p.warranty.months > 0 &&
             p.warranty.type !== "none" ? (
@@ -1142,55 +1162,23 @@ export default function PDP() {
                 </span>
               </div>
             ) : null}
-            <div className="perk flex items-center gap-3 text-[.85rem] text-muted">
-              <svg
-                viewBox="0 0 24 24"
-                className="h-5 w-5 shrink-0 text-silver2"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.6"
-              >
-                <rect x="3" y="11" width="18" height="10" rx="1.5" />
-                <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-              </svg>{" "}
-              Secure checkout · 256-bit SSL encrypted
-            </div>
           </div>
 
-          {/* Step 5 — key features checklist card (admin-managed, bn twins) */}
-          {featureList.length ? (
-            <div className="mt-5 border border-line bg-panel" id="pdpFeatures">
-              <div className="border-b border-line px-5 py-3 font-head text-[.8rem] font-bold uppercase tracking-[.18em]">
-                {t("Key Features")}
-              </div>
-              <ul
-                className="grid grid-cols-1 gap-x-6 px-5 py-4 md:grid-cols-2"
-                data-featurelist="1"
-              >
-                {featureList.map((f, i) => (
-                  <li
-                    key={i}
-                    className="flex items-start gap-2.5 py-1 text-[.88rem] text-txt"
-                  >
-                    <svg
-                      viewBox="0 0 24 24"
-                      className="mt-[3px] h-4 w-4 shrink-0 text-acc"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2.2"
-                    >
-                      <path d="M5 13l4 4L19 7" />
-                    </svg>
-                    <span>{f}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ) : null}
+        </div>
+      </div>
+      <div className="pdp-content container mx-auto w-[92%] max-w-5xl space-y-8 py-8" id="pdpContent">
 
-          {/* specs + guide — Step 5: GROUPED sections from the category schema.
-              Step 7 (#8): >20 visible rows switch to the dense two-column
-              spec-sheet grid (label stacked over value per cell). */}
+          {/*specs + guide — GROUPED sections from the category schema.
+              (#8): >20 visible rows switch to the dense two-column
+              spec-sheet grid (label stacked over value per cell).*/}
+          {pDesc ? <details className="specs mt-5 border border-line" id="pdpDescWrap">
+            <summary className="cursor-pointer bg-panel px-5 py-3.5 font-head text-[.8rem] font-bold uppercase tracking-[.18em]">
+              {t("Description")}
+            </summary>
+            <div className="whitespace-pre-line break-words px-5 py-4 text-[.9rem] leading-relaxed text-muted" id="pdpDesc">
+              {pDesc}
+            </div>
+          </details> : null}
           <details
             className="specs mt-5 border border-line"
             id="pdpSpecsWrap"
@@ -1311,7 +1299,7 @@ export default function PDP() {
             </details>
           ) : null}
 
-          {/* reviews — live API (approved only) + rating distribution + owner tools (Task 29) */}
+
           <div className="reviews mt-8" id="pdpReviews">
             <div className="rev-head flex flex-wrap items-center justify-between gap-6">
               <div>
@@ -1376,7 +1364,7 @@ export default function PDP() {
                   key={k}
                   type="button"
                   data-sort={k}
-                  onClick={() => setRevSort(k)}
+                  onClick={() => { setRevPage(1); setRevSort(k); }}
                   className={
                     "px-2.5 py-1 font-cond text-[.7rem] uppercase tracking-[.1em] border transition-colors " +
                     (revSort === k
@@ -1554,6 +1542,17 @@ export default function PDP() {
                 </p>
               ) : null}
             </div>
+            {revPages > 1 ? (
+              <nav className="mt-4 flex items-center justify-center gap-3" aria-label="Review pages">
+                <button type="button" disabled={revPage <= 1} onClick={() => setRevPage((n) => Math.max(1, n - 1))} className="border border-line2 px-3 py-2 text-sm text-txt disabled:cursor-not-allowed disabled:opacity-40">
+                  {t("Previous")}
+                </button>
+                <span className="text-sm text-dim">{t("Page {page} of {pages}", { page: revPage, pages: revPages })}</span>
+                <button type="button" disabled={revPage >= revPages} onClick={() => setRevPage((n) => Math.min(revPages, n + 1))} className="border border-line2 px-3 py-2 text-sm text-txt disabled:cursor-not-allowed disabled:opacity-40">
+                  {t("Next")}
+                </button>
+              </nav>
+            ) : null}
 
             <form
               className="rev-form mt-6 border border-line bg-panel p-5"
@@ -1669,7 +1668,7 @@ export default function PDP() {
             </form>
           </div>
 
-          {/* Q&A — answered questions live from the API + visitor ask */}
+          {/*Q&A — answered questions live from the API + visitor ask*/}
           <div className="pdp-qa mt-8" id="pdpQA">
             <div className="flex flex-wrap items-end justify-between gap-3">
               <h3 className="font-disp text-2xl uppercase tracking-wide text-txt">
@@ -1683,7 +1682,7 @@ export default function PDP() {
                   <button
                     key={k}
                     type="button"
-                    onClick={() => setQaSort(k)}
+                    onClick={() => { setQaPage(1); setQaSort(k); }}
                     className={
                       "border px-3 py-1 font-cond text-[.7rem] uppercase tracking-[.14em] transition-colors " +
                       (qaSort === k
@@ -1745,6 +1744,17 @@ export default function PDP() {
                 </p>
               ) : null}
             </div>
+            {qaPages > 1 ? (
+              <nav className="mt-4 flex items-center justify-center gap-3" aria-label="Question pages">
+                <button type="button" disabled={qaPage <= 1} onClick={() => setQaPage((n) => Math.max(1, n - 1))} className="border border-line2 px-3 py-2 text-sm text-txt disabled:cursor-not-allowed disabled:opacity-40">
+                  {t("Previous")}
+                </button>
+                <span className="text-sm text-dim">{t("Page {page} of {pages}", { page: qaPage, pages: qaPages })}</span>
+                <button type="button" disabled={qaPage >= qaPages} onClick={() => setQaPage((n) => Math.min(qaPages, n + 1))} className="border border-line2 px-3 py-2 text-sm text-txt disabled:cursor-not-allowed disabled:opacity-40">
+                  {t("Next")}
+                </button>
+              </nav>
+            ) : null}
 
             <form
               className="qa-form mt-6 border border-line bg-panel p-5"
@@ -1810,10 +1820,9 @@ export default function PDP() {
               </button>
             </form>
           </div>
-        </div>
       </div>
 
-      {/* related products — same category, live from the catalog */}
+
       {related.length ? (
         <div
           className="pdp-related container mx-auto w-[92%] border-t border-line py-10"
@@ -1847,7 +1856,6 @@ export default function PDP() {
         </div>
       ) : null}
 
-      {/* sticky bottom bar */}
       <div
         className="pdp-sticky fixed inset-x-0 bottom-0 z-30 hidden items-center gap-4 border-t border-line bg-panel/95 px-5 py-3 backdrop-blur transition-transform duration-300 md:flex"
         id="pdpSticky"

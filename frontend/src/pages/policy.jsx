@@ -1,14 +1,9 @@
-/* ArixGear page — /policies/:slug (Phase 6c).
-   One renderer, five policies (shipping / returns / warranty / privacy / terms).
-   Content mirrors backend-enforced numbers: Setting.shipping fees + free
-   threshold, requestReturn 7-day window, warranty.months on every PDP,
-   OTP/reset TTLs, ARIX10 newsletter coupon. */
 import { Link, useLocation, useParams } from 'react-router-dom';
 import { useLang } from '../lib/i18n.jsx';
 import { useSEO } from '../lib/seo.jsx';
 import { Eyebrow, miniBtn } from '../components/accountKit.jsx';
 
-/* ---------- content (English source; UI chrome translated via BN keys) ---------- */
+/*---------- content (English source; UI chrome translated via BN keys) ----------*/
 const POLICIES = {
   shipping: {
     label: 'Shipping Policy',
@@ -123,8 +118,7 @@ export default function Page() {
   const { t } = useLang();
   const loc = useLocation();
   const params = useParams();
-  /* routes are literal (/policies/shipping …) — the slug arrives via useParams
-     when registered as :slug, else parse the path tail */
+  /*routes are literal (/policies/shipping …) — the slug arrives via useParams when registered as :slug, else parse the path tail*/
   const slug = (params.slug || loc.pathname.split('/').filter(Boolean).pop() || '').toLowerCase();
   const doc = POLICIES[slug];
 
@@ -189,7 +183,6 @@ export default function Page() {
           ))}
         </div>
 
-        {/* cross links */}
         <div className="mt-2 flex flex-wrap items-center gap-3 border-t border-line pt-8">
           <span className="text-[.85rem] text-muted">{t('Related:')}</span>
           {slug !== 'shipping' ? <Link to="/policies/shipping" className={miniBtn}>{t('Shipping Policy')}</Link> : null}

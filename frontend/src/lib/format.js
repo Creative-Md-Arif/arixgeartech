@@ -1,4 +1,3 @@
-/* ArixGear core — formatting helpers (৳ BDT everywhere) */
 export const money = (n) => {
   n = +n || 0;
   return '৳' + (Number.isInteger(n) ? n.toLocaleString('en-US') : n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
@@ -10,7 +9,7 @@ export const PAY_LABELS = { bkash: 'bKash', nagad: 'Nagad', rocket: 'Rocket', co
 export const STATUS_LABELS = { verifying: 'Verifying', processing: 'Processing', packed: 'Packed', shipped: 'Shipped', delivered: 'Delivered', cancelled: 'Cancelled', 'payment-rejected': 'Payment rejected' };
 export const DIV_LABELS = { dhaka: 'Dhaka', chattogram: 'Chattogram', khulna: 'Khulna', rajshahi: 'Rajshahi', barishal: 'Barishal', sylhet: 'Sylhet', rangpur: 'Rangpur', mymensingh: 'Mymensingh' };
 
-/* server order (publicView) → UI order shape (ported from core/orders.js) */
+/* Convert publicView order data to the storefront order shape. */
 export function adaptOrder(o) {
   return {
     no: o.orderNumber, date: new Date(o.createdAt || Date.now()).getTime(),

@@ -1,11 +1,4 @@
-/* ArixGear section — combo bundles (Phase 3, #11 of 13).
-   Bundle content comes from the ComboBundle collection. Homepage config only
-   selects which existing bundle slugs should be displayed.
-   Prices: the bundle price is explicit; the compare total is the live sum of
-   item prices (recalculated from the catalog so admin price edits always show
-   honest savings). "Add bundle" drops every item into the cart (no drawer
-   spam — one toast, cart opens once). The ComboBundle backend model + order
-   validation lands in Phase 4; this section is already admin-manageable. */
+/*combo bundles. Bundle content comes from the ComboBundle collection. Homepage config only selects which existing bundle slugs should be displayed. Prices: the bundle price is explicit; the compare total is the live sum of item prices (recalculated from the catalog so admin price edits always show honest savings). "Add bundle" drops every item into the cart (no drawer spam — one toast, cart opens once).*/
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useContent } from '../../store/content.jsx';
 import { useCatalog, priceFor } from '../../store/catalog.jsx';
@@ -37,7 +30,7 @@ function BundleCard({ bundle }) {
     setBusy(true);
     addToCart(null, null, null, 1, false, bundle);
     setBusy(false);
-    window.dispatchEvent(new CustomEvent('forged:open-drawer', { detail: 'cart' }));
+    window.dispatchEvent(new CustomEvent('arixgear:open-drawer', { detail: 'cart' }));
   };
 
   return (

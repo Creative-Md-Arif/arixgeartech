@@ -1,4 +1,3 @@
-/* ArixGear component — cart & wishlist drawers + scrim */
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useStore } from '../store/store.jsx';
@@ -35,7 +34,7 @@ export function CartDrawer() {
   const { n, sum } = cartTotals();
   const left = Math.max(0, FREE_SHIP - sum);
 
-  /* Task 60-c — guest checkout kill-switch surfaces in the drawer too:
+  /* guest checkout kill-switch surfaces in the drawer too:
      when the admin turns guests off and no one is logged in, warn BEFORE
      checkout instead of surprising at the gate. Fetched once per mount. */
   const [guestOff, setGuestOff] = useState(false);
@@ -89,7 +88,7 @@ export function CartDrawer() {
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
           </Link>
           <button className="df-continue w-full font-cond text-[.8rem] uppercase tracking-[.2em] text-dim transition-colors hover:text-txt" onClick={closeDrawers}>{t('Continue shopping')}</button>
-          {/* Phase 6a — the full /cart page exists; the drawer stays the quick view */}
+
           <Link to="/cart" className="mt-2 block text-center font-cond text-[.72rem] uppercase tracking-[.22em] text-dim transition-colors hover:text-acc" onClick={closeDrawers}>
             {t('Open the full cart page')} →
           </Link>
@@ -156,7 +155,7 @@ export function WishDrawer() {
           );
         })}
       </div>
-      {/* Phase 6a — full /wishlist page link under the drawer rows */}
+
       {[...wish].length ? (
         <div className="drawer-foot border-t border-line p-5">
           <Link to="/wishlist" className="block text-center font-cond text-[.72rem] uppercase tracking-[.22em] text-dim transition-colors hover:text-acc" onClick={closeDrawers}>

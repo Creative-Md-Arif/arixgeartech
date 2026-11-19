@@ -1,6 +1,3 @@
-/* ArixGear page — /best-sellers (Phase 6d).
-   Sales-ranked shelf on the shared CatalogBrowser — sort locked to the server's
-   "popular" order (units sold), zero client-side curation. */
 import { Link } from 'react-router-dom';
 import CatalogBrowser from '../components/CatalogBrowser.jsx';
 import { useLang } from '../lib/i18n.jsx';

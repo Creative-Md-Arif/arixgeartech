@@ -1,6 +1,3 @@
-/* ArixGear page — /help (Phase 6c).
-   Help-center hub: every self-service surface as a link card, plus response
-   times and the emergency strip (order issues → contact desk). */
 import { Link } from 'react-router-dom';
 import { useLang } from '../lib/i18n.jsx';
 import { useSEO } from '../lib/seo.jsx';
@@ -52,7 +49,6 @@ export default function Page() {
           ))}
         </div>
 
-        {/* response-time strip */}
         <div className="mt-10 grid gap-[.7rem] sm:grid-cols-3" id="helpSla">
           {[
             [t('Order & payment issues'), t('Contact desk — reply within one working day'), '/contact'],

@@ -1,13 +1,9 @@
-/* ArixGear core — Facebook (Meta) Pixel, admin-driven (ported from core/pixel.js).
-   Config: GET /api/settings/pixel (services/settings.getPixel). When enabled, the
-   Meta base code is injected at runtime and PageView fires. window.__fbEvents
-   mirrors every event (QA). Every fbTrack call is ALSO forwarded to Google
-   Analytics 4 (lib/analytics.js) — one touchpoint feeds both trackers.       */
+/* Admin-configured Meta Pixel; events are also forwarded to GA4. */
 import { getPixel } from '../services/settings.js';
 import { gaTrack, gaPageView } from './analytics.js';
 
 window.arixPixel = { enabled: false, pixelId: '' };
-window.forgedPixel = window.arixPixel; /* legacy QA alias — removed in Phase 8 */
+window.arixgearPixel = window.arixPixel;
 window.__fbEvents = [];
 
 /* Meta → GA4 event name map (GA4 recommended commerce events) */
@@ -69,7 +65,7 @@ export async function initPixel() {
     const px = d && d.pixel;
     if (!px || !px.enabled || !px.pixelId) return; /* OFF — stay dark */
     window.arixPixel = { enabled: true, pixelId: px.pixelId };
-    window.forgedPixel = window.arixPixel; /* legacy QA alias — removed in Phase 8 */
+    window.arixgearPixel = window.arixPixel;
     if (!window.fbq) {
       const n = (window.fbq = function () { n.callMethod ? n.callMethod.apply(n, arguments) : n.queue.push(arguments); });
       if (!window._fbq) window._fbq = n;

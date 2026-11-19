@@ -1,10 +1,7 @@
-/* ArixGear services — product reviews (PDP: list + submit + owner edit/delete + helpful votes) */
 import { api } from './http.js';
 
-/* GET /api/products/:slug/reviews — approved only + summary {avg,total,dist}
-   Auth is INCLUDED on purpose: logged-in callers get `mine` flags on their reviews */
 export const listByProduct = (slug, opts = {}, signal) =>
-  api(`/products/${encodeURIComponent(slug)}/reviews` + (opts.sort ? `?sort=${opts.sort}` : ''), { signal });
+  api(`/products/${encodeURIComponent(slug)}/reviews?sort=${opts.sort || 'new'}&page=${opts.page || 1}`, { signal });
 
 /* POST /api/products/:slug/reviews — { name, rating, comment } → pending approval */
 export const create = (slug, body, signal) =>

@@ -1,7 +1,3 @@
-/* ArixGear page — /faq (Phase 6c).
-   Customer FAQ with a live text filter and grouped accordions. Numbers match
-   the backend truth: shipping fees (Setting.shipping), 7-day return window
-   (orderController.requestReturn), 15-minute reset links, OTP TTL. */
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useLang } from '../lib/i18n.jsx';
@@ -65,7 +61,7 @@ export default function Page() {
   });
   const { t } = useLang();
   const [q, setQ] = useState('');
-  const [open, setOpen] = useState(null); /* 'orders-0' style keys */
+  const [open, setOpen] = useState(null);
 
   const norm = (s) => s.toLowerCase();
   const filtered = useMemo(() => {
@@ -89,7 +85,6 @@ export default function Page() {
           {t('The numbers here — fees, windows, timelines — are the same ones the backend enforces. Nothing aspirational.')}
         </p>
 
-        {/* filter */}
         <div className="mt-8 flex items-center gap-[.6rem] border border-line bg-panel px-[.9rem] py-[.7rem] ring-1 ring-inset ring-line2 focus-within:ring-acc">
           <svg viewBox="0 0 24 24" className="h-[15px] w-[15px] flex-none fill-none stroke-[2] stroke-dim"><circle cx="11" cy="11" r="7" /><path d="M21 21l-4.3-4.3" /></svg>
           <input
@@ -100,7 +95,6 @@ export default function Page() {
           />
         </div>
 
-        {/* groups */}
         <div className="mt-10">
           {filtered.length === 0 ? (
             <div className="border border-dashed border-line2 px-6 py-14 text-center text-muted">
@@ -137,7 +131,6 @@ export default function Page() {
           )}
         </div>
 
-        {/* cross links */}
         <div className="mt-4 flex flex-wrap items-center gap-3">
           <span className="text-[.85rem] text-muted">{t('Deeper reading:')}</span>
           <Link to="/help" className={miniBtn}>{t('Help Center')}</Link>

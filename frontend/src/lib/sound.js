@@ -1,10 +1,7 @@
-/* Task 37 — bell sound alert: a synthesized "ding-dong" via Web Audio.
-   No audio files needed; works on both admin + storefront bells.
-   Preference persists under a console-specific storage key. */
-
+/* Browser notification sound preference and synthesized bell chime. */
 const KEYS = {
-  admin: 'forged_user_sound',
-  user: 'forged_user_sound',
+  admin: 'arixgear_user_sound',
+  user: 'arixgear_user_sound',
 };
 
 export const soundOn = (which = 'admin') => {
@@ -22,7 +19,6 @@ const audio = () => {
   return ctx;
 };
 
-/* two-tone chime (E6 → C6) — warm, short, impossible to mistake for an OS sound */
 export function playBell() {
   const c = audio();
   if (!c) return;

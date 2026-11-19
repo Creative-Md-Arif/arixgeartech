@@ -1,17 +1,5 @@
-/* ArixGear component — CatalogBrowser (Phase 6a).
-   The server-driven catalog engine extracted out of pages/shop.jsx so every
-   6a/6d listing page (category / brand / search / deals / new-arrivals /
-   best-sellers / featured) shares ONE query/facet/pagination implementation.
-
-   Contract: the page owns the hero/breadcrumb/SEO; this component owns the
-   tools strip + grid + empty state + pager. Filters lock via props:
-     fixedCats / fixedBrands — slugs pinned into the query (branch-aware
-       server-side for categories); locked filters hide their chip groups.
-     initial                 — seed state ({ q, sort, badge, saleOnly, stockOnly, max, minRating })
-     lockSort                — pin the sort (select hidden) for curated shelves
-     pinned                  — extra query params merged into every call ({ featured: true })
-     syncQ                   — two-way URL ?q= sync (search page deep links)
-     subChips                — category-page narrowing chips (children) */
+/* Shared server-driven catalog controls and facets for listing pages.
+   Parent pages own the page shell; this component owns filters, grid, empty state and pagination. */
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import ProductCard from './ProductCard.jsx';
@@ -73,7 +61,7 @@ export default function CatalogBrowser({
   const [size, setSize] = useState('');
   const [page, setPage] = useState(1);
   const [perPage, setPerPage] = useState(DEFAULT_LIMIT);
-  /* Step 5 — DYNAMIC SPEC FILTERS (schema-driven facets): specSel holds
+  /* DYNAMIC SPEC FILTERS (schema-driven facets): specSel holds
      multi-value selections {fieldKey: [values]}, specRange the number ranges
      {fieldKey: {min, max}}. Facets + UI are generated from the category's
      filterable fields — a new schema field shows up here with zero code. */
@@ -142,7 +130,7 @@ export default function CatalogBrowser({
     if (v.trim().length >= 2) pxT.current = setTimeout(() => fbTrack('Search', { search_string: v.trim() }), 900);
   };
 
-  /* facets — category-scoped (Step 5: spec facets ride the scoped payload);
+  /* facets — category-scoped (spec facets ride the scoped payload);
      re-queried whenever the branch changes */
   useEffect(() => {
     let dead = false;
@@ -170,7 +158,7 @@ export default function CatalogBrowser({
     setLoading(true);
     setLoadError(false);
     const priceMax = max === null || max >= 250000 ? undefined : max;
-    /* Step 5 — spec_* query params from the dynamic facet selections */
+    /* spec_* query params from the dynamic facet selections */
     const specParams = {};
     for (const [k, vals] of Object.entries(specSel)) if (vals && vals.length) specParams['spec_' + k] = vals.join(',');
     for (const [k, r] of Object.entries(specRange)) {
@@ -461,7 +449,7 @@ export default function CatalogBrowser({
           </div>
         ) : null}
 
-        {/* facet filters — stock / sale / badge / size */}
+
         <div id={id + 'Filters'} className="shop-filter-card shop-filter-facets flex flex-col items-stretch gap-[.35rem]">
           <h3 className="shop-filter-title">{t('Availability')}</h3>
           <button data-f="stock" aria-pressed={stockOnly} className={'shop-sidebar-option ' + (stockOnly ? 'is-active' : '')} onClick={() => { setStockOnly((v) => !v); resetPage(); }}><span className="shop-check" aria-hidden="true">{stockOnly ? '✓' : ''}</span>{t('In stock')}</button>
@@ -503,10 +491,10 @@ export default function CatalogBrowser({
           </div>
         ) : null}
 
-          {/* Step 5 — DYNAMIC SPEC FACETS: generated from the category's
+          {/*DYNAMIC SPEC FACETS: generated from the category's
               filterable fields (schema-driven, zero hardcode). Grouped under
               the schema's group label; dropdown for single-select, toggle
-              chips for multi-select, Yes/No for booleans, min/max for numbers. */}
+              chips for multi-select, Yes/No for booleans, min/max for numbers.*/}
           {(facets && Array.isArray(facets.specs) && facets.specs.length) ? (
             <div className="shop-spec-stack" id={id + 'SpecFilters'} data-specfilters="1">
               {facets.specs.map((f) => {
@@ -694,7 +682,7 @@ export default function CatalogBrowser({
         ) : null}
       </div>
 
-      {/* pagination — server-driven */}
+
       {pages > 1 ? (
         <nav id={id + 'Pager'} className="mt-5 flex flex-wrap items-center justify-center gap-2" aria-label="Catalog pages">
           <button

@@ -1,21 +1,17 @@
-/* ArixGear services — customer auth (JWT) */
 import { api } from './http.js';
 
-/* POST /api/auth/login — { identifier, password } → { token, user }
-   identifier = email OR BD phone (backend normalizes + routes). Legacy
-   { email, password } bodies still work server-side. */
 export const login = (identifier, password, signal) =>
   api('/auth/login', { method: 'POST', body: { identifier, password }, signal });
 
 /* POST /api/auth/register — { name, email, phone?, password }
    → 201 { needsVerification: true, email, devOtp? } — account is UNVERIFIED
-   until POST /verify-email confirms the emailed 6-digit code (Task 51). */
+   until POST /verify-email confirms the emailed 6-digit code . */
 export const register = (name, email, password, phone, signal) =>
   api('/auth/register', { method: 'POST', body: phone ? { name, email, phone, password } : { name, email, password }, signal });
 
 /* POST /api/auth/verify-email — { email, code } → { token, user } (logs you in) */
-export const verifyEmail = (email, code, signal) =>
-  api('/auth/verify-email', { method: 'POST', body: { email, code }, signal });
+export const verifyEmail = (email, code, signal, loginAfterVerify = true) =>
+  api('/auth/verify-email', { method: 'POST', body: { email, code, loginAfterVerify }, signal });
 
 /* POST /api/auth/resend-verification — { email } → always 200 (generic) */
 export const resendVerification = (email, signal) =>
@@ -39,11 +35,9 @@ export const verifyResetToken = (token, signal) =>
 export const resetPassword = (token, password, signal) =>
   api('/auth/reset-password', { method: 'POST', body: { token, password }, signal });
 
-/* GET /api/auth/loyalty — Task 56-a: points balance + spend rules + history
+/* GET /api/auth/loyalty — points balance + spend rules + history
    { referralCode, points, rules:{enabled,pointValue,minRedeem,maxRedeemPct}, history:[…] } */
 export const loyalty = (signal) => api('/auth/loyalty', { signal });
-
-/* ── Phase 6b — account pack (profile / password / address book) ─────────── */
 
 /* PATCH /api/auth/profile — { name?, phone? } → { user } (BD phone normalized server-side) */
 export const updateProfile = (body, signal) =>

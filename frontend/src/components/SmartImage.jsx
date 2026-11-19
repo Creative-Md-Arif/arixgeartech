@@ -1,11 +1,4 @@
-/* ArixGear component — SmartImage (performance pack 2d).
-   One place that knows how to load pictures fast:
-   • Cloudinary URLs get on-the-fly `f_auto,q_auto` transforms (AVIF/WebP +
-     quality auto) — big mobile data savings, zero admin work
-   • local /uploads images stay as-is (already same-origin + HTTP-cached)
-   • native lazy loading + async decode + fade-in on load (no pop, no CLS —
-     callers keep their aspect-ratio wrappers)
-   Drop-in <img> replacement: <SmartImage src=… alt=… className=… /> */
+/* Optimize Cloudinary images while preserving same-origin uploads and lazy loading. */
 import { useEffect, useRef, useState } from 'react';
 
 /* Cloudinary transformation injection: …/upload/something → …/upload/f_auto,q_auto/something */

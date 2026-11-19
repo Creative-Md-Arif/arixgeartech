@@ -1,4 +1,5 @@
 /* ArixGear ADMIN — SPA entry. One HTML shell at /admin; react-router (basename /admin). */
+import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter, useNavigate } from 'react-router-dom';
 import './index.css';

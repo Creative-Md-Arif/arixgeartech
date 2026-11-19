@@ -1,6 +1,3 @@
-/* ArixGear page — /account/profile (Phase 6b).
-   Identity + security: name/BD-phone edit, password change, loyalty card with
-   referral code + point history (Task 56-a pack), logout. */
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { updateProfile, changePassword, loyalty as loyaltyApi } from '../services/auth.js';
@@ -19,19 +16,16 @@ export default function Page() {
   const nav = useNavigate();
   const user = (session && session.user) || {};
 
-  /* profile form */
   const [pf, setPf] = useState({ name: '', phone: '' });
   const [pfErr, setPfErr] = useState('');
   const [pfOk, setPfOk] = useState('');
   const [pfBusy, setPfBusy] = useState(false);
 
-  /* password form */
   const [pw, setPw] = useState({ cur: '', next: '', rep: '' });
   const [pwErr, setPwErr] = useState('');
   const [pwOk, setPwOk] = useState('');
   const [pwBusy, setPwBusy] = useState(false);
 
-  /* loyalty */
   const [loyal, setLoyal] = useState(null);
 
   useEffect(() => {
@@ -89,7 +83,7 @@ export default function Page() {
   return (
     <Gate title="Profile">
       <AcctShell active="/account/profile" title={t('Profile')} lede={t('The identity your orders, warranties and support calls carry. Keep the phone live — delivery coordination runs on it.')}>
-        {/* identity card */}
+
         <div className="mb-6 flex flex-wrap items-center gap-x-6 gap-y-3 border border-line bg-panel px-5 py-4">
           <div>
             <p className="font-disp text-[1.15rem] text-txt">{user.name || '—'}</p>
@@ -106,7 +100,7 @@ export default function Page() {
         </div>
 
         <div className="grid gap-6 lg:grid-cols-2">
-          {/* profile form */}
+
           <form id="pfForm" noValidate onSubmit={saveProfile} className="border border-line bg-panel p-6">
             <p className="mb-5 font-cond text-[.82rem] font-semibold uppercase tracking-[.3em] text-acc">{t('Identity')}</p>
             <ErrStrip>{pfErr}</ErrStrip>
@@ -123,7 +117,6 @@ export default function Page() {
             <button id="pfSave" type="submit" disabled={pfBusy} className={btnPrimary}>{pfBusy ? t('Saving…') : t('Save profile')}</button>
           </form>
 
-          {/* password form */}
           <form id="pwForm" noValidate onSubmit={savePassword} className="border border-line bg-panel p-6">
             <p className="mb-5 font-cond text-[.82rem] font-semibold uppercase tracking-[.3em] text-acc">{t('Password')}</p>
             <ErrStrip>{pwErr}</ErrStrip>
@@ -144,7 +137,6 @@ export default function Page() {
           </form>
         </div>
 
-        {/* loyalty card */}
         {loyal ? (
           <div className="mt-6 border border-line bg-panel p-6" id="loyalCard">
             <div className="flex flex-wrap items-center gap-4">

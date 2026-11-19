@@ -1,6 +1,3 @@
-/* ArixGear page — /account/addresses (Phase 6b).
-   Address book CRUD over /auth/addresses (index-based contract). First address
-   is the default; checkout pre-fills from the default row. */
 import { useEffect, useState } from 'react';
 import { listAddresses, addAddress, updateAddress, deleteAddress } from '../services/auth.js';
 import { DIV_LABELS } from '../lib/format.js';
@@ -16,7 +13,7 @@ export default function Page() {
   const { t } = useLang();
   const { toast } = useUI();
 
-  const [list, setList] = useState(null); /* null loading · [] none · rows */
+  const [list, setList] = useState(null);
   const [form, setForm] = useState(BLANK);
   const [editIdx, setEditIdx] = useState(null);
   const [err, setErr] = useState('');
@@ -76,7 +73,7 @@ export default function Page() {
     <Gate title="Addresses">
       <AcctShell active="/account/addresses" title={t('Addresses')} lede={t('The delivery book — checkout pre-fills the default row and courier calls land on the phone in it.')}>
         <div className="grid gap-6 lg:grid-cols-[1fr_.9fr]">
-          {/* list */}
+
           <div id="addrList">
             {list === null ? (
               <div className="h-40 animate-pulse border border-line bg-panel" />
@@ -113,7 +110,6 @@ export default function Page() {
             )}
           </div>
 
-          {/* form */}
           <form id="addrForm" noValidate onSubmit={submit} className="h-fit border border-line bg-panel p-6">
             <p className="mb-5 font-cond text-[.82rem] font-semibold uppercase tracking-[.3em] text-acc">
               {editIdx === null ? t('Add address') : t('Edit address')}

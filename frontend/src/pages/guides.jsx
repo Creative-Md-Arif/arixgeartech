@@ -1,6 +1,3 @@
-/* ArixGear page — guides / blog: tag filters, cards, article reader with kit chips.
-   Posts come from content.posts (Admin → Content); ?post= opens the reader directly
-   (react-router search params). No post id / an invalid id → the list view shows. */
 import { useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { money } from '../lib/format.js';
@@ -8,22 +5,19 @@ import { useContent } from '../store/content.jsx';
 import { useCatalog } from '../store/catalog.jsx';
 import { useUI } from '../store/ui.jsx';
 
-/* ---------- shared primitives ---------- */
 const Eyebrow = ({ children }) => (
   <p className="font-cond font-semibold uppercase tracking-[.45em] text-acc text-[.82rem] flex items-center gap-3">
     <i className="not-italic inline-block h-0.5 w-9 bg-acc" />{children}
   </p>
 );
 
-/* imgk → asset mapping. Step 2 sync fix — the admin picker offers tech-era
-   keys (laptop/phone/audio/gaming) now; the legacy gym-era keys stay as
-   aliases so old content rows keep rendering. */
+/*imgk → asset mapping. sync fix — the admin picker offers tech-era keys (laptop/phone/audio/gaming) now; the legacy gym-era keys stay as aliases so old content rows keep rendering.*/
 const POST_IMG = {
   laptop: 'assets/laptop-voyage-14.png',
   phone: 'assets/phone-nova-x5.png',
   audio: 'assets/buds-air-3.png',
   gaming: 'assets/monitor-ultra-27-4k.png',
-  /* legacy aliases (pre-conversion content) */
+
   chalk: 'assets/hero-3.png',
   deadlift: 'assets/hero-2.png',
   story1: 'assets/story-1.png',
@@ -38,7 +32,7 @@ function postImg(BY_ID, k) {
   return POST_IMG[k] || 'assets/hero-1.png';
 }
 
-/* article body typography (legacy .article rules → arbitrary variants) */
+/*article body typography (legacy.article rules → arbitrary variants)*/
 const BODY_CLS = [
   '[&_p]:mb-4 [&_p]:text-[.98rem] [&_p]:text-muted',
   '[&_h3]:mb-3 [&_h3]:mt-8 [&_h3]:font-head [&_h3]:font-extrabold [&_h3]:text-[1.15rem] [&_h3]:uppercase [&_h3]:tracking-[.06em] [&_h3]:text-txt',
@@ -57,14 +51,9 @@ function PostMeta({ p }) {
 }
 
 import { useSEO } from '../lib/seo.jsx';
-import { sanitizeHtml } from '../lib/sanitize.js'; /* Step 3 audit — shared hardened sanitizer (entity-decode + svg/math/base coverage) */
+import { sanitizeHtml } from '../lib/sanitize.js'; /*audit — shared hardened sanitizer (entity-decode + svg/math/base coverage)*/
 
-/* Task 57 (security audit) — guide bodies are admin-authored HTML rendered via
-   dangerouslySetInnerHTML. Sanitize defensively: a compromised admin account
-   must not be able to run script on every customer's device.
-   Step 3 audit — the sanitizer lives in lib/sanitize.js, shared with the
-   homepage "html" section block; it entity-decodes first (javascript&colon;
-   used to slip past the raw-string regex) and strips svg/math/base/form too. */
+/*(security audit) — guide bodies are admin-authored HTML rendered via dangerouslySetInnerHTML. Sanitize defensively: a compromised admin account must not be able to run script on every customer's device. audit — the sanitizer lives in lib/sanitize.js, shared with the homepage "html" section block; it entity-decodes first (javascript&colon; used to slip past the raw-string regex) and strips svg/math/base/form too.*/
 
 export default function Page() {
   useSEO('guides');
@@ -72,7 +61,7 @@ export default function Page() {
   const { BY_ID } = useCatalog();
   const { openPDP } = useUI();
 
-  /* posts: admin-driven array only (no bundled posts) */
+  /*posts: admin-driven array only (no bundled posts)*/
   const posts = useMemo(() => {
     const src = Array.isArray(content.posts) ? content.posts : [];
     return src.filter((p) => p && p.id && p.title && p.body).map((p) => ({
@@ -81,7 +70,7 @@ export default function Page() {
     }));
   }, [content.posts]);
 
-  /* reader selection — ?post= query owns the reader (reactive, router-backed) */
+  /*reader selection — ?post= query owns the reader (reactive, router-backed)*/
   const [params, setParams] = useSearchParams();
   const sel = params.get('post');
   const [tag, setTag] = useState('All');
@@ -102,7 +91,6 @@ export default function Page() {
       <section id="page-blog" className="py-16 md:py-24">
         <div className="container mx-auto w-[92%]">
 
-          {/* ---------- LIST VIEW ---------- */}
           <div id="blogList" className={post ? 'hidden' : ''}>
             <div>
               {guides.eyebrow ? <Eyebrow>{guides.eyebrow}</Eyebrow> : null}
@@ -122,7 +110,7 @@ export default function Page() {
               ))}
             </div>
 
-            {/* featured = first post of the filtered list */}
+            {/*featured = first post of the filtered list*/}
             {list[0] && (
               <article className="group mb-10 grid cursor-pointer border border-line bg-panel transition-colors duration-300 hover:border-acc lg:grid-cols-[1.25fr_1fr]"
                 onClick={() => openPost(list[0].id)} data-post={list[0].id}>
@@ -161,7 +149,6 @@ export default function Page() {
             </div>
           </div>
 
-          {/* ---------- READER VIEW ---------- */}
           {post && (
             <div id="postReader">
               <button id="blogBack" onClick={closePost}
@@ -175,7 +162,7 @@ export default function Page() {
                   <img src={postImg(BY_ID, post.imgk)} alt={post.title}
                     className="h-full w-full object-cover [filter:contrast(1.1)_grayscale(.35)]" />
                 </div>
-                {/* admin-trusted post HTML (Admin → Content) */}
+                {/*admin-trusted post HTML (Admin → Content)*/}
                 <div className={BODY_CLS} dangerouslySetInnerHTML={{ __html: sanitizeHtml(post.body) }} />
 
                 {kitProducts.length > 0 && (
@@ -197,7 +184,7 @@ export default function Page() {
 
         </div>
       </section>
-    
+
     </>
   );
 }

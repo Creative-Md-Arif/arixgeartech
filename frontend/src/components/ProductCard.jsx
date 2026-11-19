@@ -1,4 +1,3 @@
-/* ArixGear component — product card (index carousel/arsenal + shop grid) */
 import { useStore } from '../store/store.jsx';
 import { useUI } from '../store/ui.jsx';
 import { money } from '../lib/format.js';
@@ -7,7 +6,7 @@ import Stars from './Stars.jsx';
 
 /* badge text — label from the admin-managed Badge collection; the seeded
    SALE badge keeps its live discount percentage when a compare price exists.
-   Task 58 — bn mode prefers badgeLabelBn, sale wording goes through tr(). */
+   bn mode prefers badgeLabelBn, sale wording goes through tr. */
 export function badgeText(p) {
   const { isBn, t } = useLangSafe();
   if (!p.badgeKey && !p.badgeLabel && !p.badgeLabelBn) return null;
@@ -41,7 +40,7 @@ export default function ProductCard({ p }) {
   const { openPDP, toggleWish } = { ...useUI(), toggleWish: useStore().toggleWish };
   const { t, isBn } = useLang();
   const bt = badgeText(p);
-  const pName = pick(p, 'name'); // Task 58 — bilingual display name
+  const pName = pick(p, 'name');
   const pCat = isBn && p.catBn ? p.catBn : t(p.cat);
   return (
     <article className="card group relative bg-panel border border-line transition-colors duration-300 hover:border-line2" data-id={p.id}>
@@ -87,9 +86,9 @@ export default function ProductCard({ p }) {
       <div className="flex h-[168px] flex-col p-4">
         <p className="font-cond text-[.78rem] uppercase tracking-[.25em] text-dim">{pCat}</p>
         <h3 className="mt-1 h-10 line-clamp-2 cursor-pointer font-head text-[.95rem] font-700 font-bold leading-5 text-txt transition-colors hover:text-acc" data-open={p.id} onClick={() => openPDP(p.id)}>{pName}</h3>
-        {/* Step 6 — SHOW-ON-CARD spec chips (schema-driven: RAM/GPU/Storage…).
+        {/*SHOW-ON-CARD spec chips (schema-driven: RAM/GPU/Storage…).
             The server computes them against the category schema; bn mode uses
-            labelBn twins. Empty → the row simply doesn't render. */}
+            labelBn twins. Empty → the row simply doesn't render.*/}
         <div className="mt-2 flex h-6 flex-nowrap gap-1.5 overflow-hidden" data-specbadges={p.id}>
             {(p.specBadges || []).slice(0, 3).map((b) => (
               <span key={b.k} className="inline-flex max-w-[110px] items-center gap-1 rounded border border-line2 bg-bg2 px-1.5 py-0.5 text-[10.5px] font-semibold text-muted" title={(isBn && b.labelBn ? b.labelBn : b.label) + ': ' + b.v}>

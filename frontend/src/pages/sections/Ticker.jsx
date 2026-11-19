@@ -1,11 +1,9 @@
-/* ArixGear section — marquee ticker. Items come from sectionCfg('ticker') only
-   (Admin → Homepage); no items / section hidden → render null.
-   Task 58 — BN mode prefers cfg.itemsBn when present (falls back to items). */
+/*marquee ticker. Items come from sectionCfg('ticker') only (Admin → Homepage); no items / section hidden → render null. BN mode prefers cfg.itemsBn when present (falls back to items).*/
 import { useContent } from "../../store/content.jsx";
 import { pickArr, useLang } from "../../lib/i18n.jsx";
 
 export default function Ticker() {
-  useLang(); // Task 58 — subscribe so BN toggles re-render pickArr() items
+  useLang();  // subscribe so BN toggles re-render pickArr() items
   const { sectionCfg, sectionVisible } = useContent();
   if (!sectionVisible("ticker")) return null;
 
@@ -13,8 +11,7 @@ export default function Ticker() {
   const items = pickArr(cfg, "items").map((x) => String(x));
   if (!items.length) return null;
 
-  /* the copy is rendered TWICE inside #tickerTrack — animate-marquee translates -50%,
-     so the loop is seamless when both halves are identical */
+  /*the copy is rendered TWICE inside #tickerTrack — animate-marquee translates -50%, so the loop is seamless when both halves are identical*/
   const half = (key) => (
     <span
       key={key}

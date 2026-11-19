@@ -1,4 +1,3 @@
-/* ArixGear component — site header: announce bar, logo, nav, search popup, actions */
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useCatalog } from "../store/catalog.jsx";
@@ -19,7 +18,7 @@ function SearchPopup({ className = "" }) {
   const { t, isBn } = useLang();
   const [q, setQ] = useState("");
   const [results, setResults] = useState([]);
-  const [srv, setSrv] = useState([]); /* Task 27 — server-side suggest hits */
+  const [srv, setSrv] = useState([]); /* server-side suggest hits */
   const [active, setActive] = useState(0);
   const [open, setOpen] = useState(false);
   const boxRef = useRef(null);
@@ -33,13 +32,13 @@ function SearchPopup({ className = "" }) {
     }
     const list = PRODUCTS.filter((p) =>
       (p.name + " " + (p.nameBn || "") + " " + p.cat).toLowerCase().includes(s),
-    ).slice(0, 6); // Task 58 — Bn names searchable too
+    ).slice(0, 6);
     setResults(list);
     setActive(0);
     setOpen(true);
   };
 
-  /* Task 27 — whole-catalog typeahead: the local mirror holds ≤48 products, so
+  /* whole-catalog typeahead: the local mirror holds ≤48 products, so
      anything deeper (or shortDesc-only matches) arrives via /search/suggest.
      Debounced 250ms; silent failure keeps the local results intact. */
   useEffect(() => {
@@ -65,7 +64,7 @@ function SearchPopup({ className = "" }) {
         id: it.slug,
         name: it.name,
         nameBn: it.nameBn || "",
-        cat: it.category || "Gear", // Task 58
+        cat: it.category || "Gear",
         rating: +it.rating || 0,
         price: +it.price || 0,
         img: (it.images && it.images[0] && it.images[0].url) || "",
@@ -170,7 +169,7 @@ function SearchPopup({ className = "" }) {
                 "(" + q.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + ")",
                 "ig",
               );
-              const nm = isBn && p.nameBn ? p.nameBn : p.name; // Task 58 — bilingual suggestion label
+              const nm = isBn && p.nameBn ? p.nameBn : p.name;
               return (
                 <div
                   key={p.id}
@@ -224,7 +223,7 @@ function SearchPopup({ className = "" }) {
   );
 }
 
-/* Task 57 — slim header: secondary menus (Goals/Athletes/Stories/About/Guides/Contact)
+/* slim header: secondary menus (Goals/Athletes/Stories/About/Guides/Contact)
    moved to the footer, where they already live. Header keeps only core commerce nav.
    Flash Sale gets the hottest spot — accent, first. */
 const NAV = [
@@ -232,7 +231,7 @@ const NAV = [
 
 ];
 
-/* Phase 3 (#3 of 13) — SECONDARY CATEGORY NAVBAR: tree-driven strip under the
+/* SECONDARY CATEGORY NAVBAR: tree-driven strip under the
    primary nav. Hover/focus a root → dropdown with its subcategories + live
    counts; every link deep-links to /shop?cat=<slug> (branch-filtered). */
 function CatNavbar() {

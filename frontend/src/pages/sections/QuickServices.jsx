@@ -1,11 +1,4 @@
-/* ArixGear section — quick services (Phase 3, #6 of 13).
-   Four service cards per the conversion spec:
-     · Laptop Finder    — 3-step wizard (budget → use → live catalog picks)
-     · AC Ton Calculator — room-size → ton estimate + matching ACs
-     · Raise a Complaint — deep-links to /contact?topic=Complaint
-     · Servicing Center  — deep-links to /contact?topic=Service & repair
-   All card content, card actions, and finder/calculator rules are driven by
-   the quick-services section config, with defaults for legacy section records. */
+/*quick services. Four service cards per the conversion spec: · Laptop Finder — 3-step wizard (budget → use → live catalog picks) · AC Ton Calculator — room-size → ton estimate + matching ACs · Raise a Complaint — deep-links to /contact?topic=Complaint · Servicing Center — deep-links to /contact?topic=Service & repair All card content, card actions, and finder/calculator rules are driven by the quick-services section config, with defaults for legacy section records.*/
 import { useMemo, useState } from "react";
 import { useContent } from "../../store/content.jsx";
 import { useCatalog, priceFor } from "../../store/catalog.jsx";
@@ -14,7 +7,7 @@ import { pick, useLang } from "../../lib/i18n.jsx";
 import { SectionHead, OutlineTitle } from "./Head.jsx";
 import { Link } from "react-router-dom";
 
-/* ---------- Laptop Finder wizard ---------- */
+/*---------- Laptop Finder wizard ----------*/
 const BUDGETS = [
   {
     key: "u80",
@@ -97,7 +90,7 @@ function LaptopFinderModal({ onClose, settings }) {
       )
       .sort((a, b) => b.rating - a.rating)
       .slice(0, 3);
-    /* honest fallback: nothing in budget → the closest matches for that use */
+    /*honest fallback: nothing in budget → the closest matches for that use*/
     const nearest = inBudget.length ? [] : matchUse.slice(0, 2);
     return { inBudget, nearest };
   }, [budget, use, PRODUCTS, uses]);
@@ -279,7 +272,6 @@ function LaptopFinderModal({ onClose, settings }) {
   );
 }
 
-/* ---------- AC Ton Calculator ---------- */
 function ACCalcModal({ onClose, settings = {} }) {
   const { PRODUCTS } = useCatalog();
   const { t } = useLang();
@@ -442,10 +434,9 @@ function ACCalcModal({ onClose, settings = {} }) {
   );
 }
 
-/* ---------- the section ---------- */
 export default function QuickServices() {
   const { sectionVisible, homeSections, sectionCfg } = useContent();
-  const [modal, setModal] = useState(null); // 'finder' | 'accalc'
+  const [modal, setModal] = useState(null);
   useLang();
 
   const visible = sectionVisible("quick-services");

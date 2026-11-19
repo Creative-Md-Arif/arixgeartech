@@ -1,6 +1,3 @@
-/* ArixGear page — /new-arrivals (Phase 6d).
-   Discovery shelf on the shared CatalogBrowser, sort locked to NEWEST FIRST —
-   the server's createdAt ordering, no client curation. */
 import { Link } from 'react-router-dom';
 import CatalogBrowser from '../components/CatalogBrowser.jsx';
 import { useLang } from '../lib/i18n.jsx';

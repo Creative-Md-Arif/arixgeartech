@@ -1,7 +1,3 @@
-/* ArixGear page — /wishlist (Phase 6a).
-   Full-page twin of the wishlist drawer: every hearted product as a real
-   ProductCard grid. Items beyond the home-feed mirror resolve live from the
-   API, and "add all" walks the rack into the cart in one shot. */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import ProductCard from '../components/ProductCard.jsx';
@@ -18,7 +14,7 @@ export default function Page() {
   const { wish, addToCart, toggleWish } = useStore();
   const { BY_ID } = useCatalog();
 
-  /* hearts beyond the home-feed mirror resolve live */
+  /*hearts beyond the home-feed mirror resolve live*/
   const [remote, setRemote] = useState({});
   const ids = useMemo(() => [...wish], [wish]);
   const missingKey = ids.filter((id) => !BY_ID[id] && !remote[id]).sort().join(',');
@@ -47,7 +43,7 @@ export default function Page() {
   const addAll = () => {
     let added = 0;
     items.forEach((p) => { if (p) { addToCart(p.id, null, null, 1, false); added++; } });
-    if (added) window.dispatchEvent(new CustomEvent('forged:open-drawer', { detail: 'cart' }));
+    if (added) window.dispatchEvent(new CustomEvent('arixgear:open-drawer', { detail: 'cart' }));
   };
 
   return (
@@ -89,7 +85,7 @@ export default function Page() {
             <div className="gear-grid mt-10 grid grid-cols-2 gap-[.7rem] md:grid-cols-3 lg:gap-[1.15rem] xl:grid-cols-4">
               {items.map((p) => <ProductCard key={p.id} p={p} />)}
             </div>
-            {/* any heart the API could not resolve (retired product) — honest note */}
+            {/*any heart the API could not resolve (retired product) — honest note*/}
             {items.length < wish.size ? (
               <p className="mt-6 font-cond text-[.8rem] uppercase tracking-[.16em] text-dim">
                 {t('{n} saved item(s) are no longer in the catalog — removing them keeps the list clean.', { n: wish.size - items.length })}

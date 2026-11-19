@@ -2,17 +2,8 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ============================================================
-   ARIXGEAR.TECH — global CSS (React + Tailwind build)
-   Clean precision surfaces: tokens, fonts, scrollbars, reveal,
-   outline display type. No textures, no grain.
-   :root = dark (default) · html.light flips to light.
-   ============================================================ */
 html { overflow-x: clip; scrollbar-gutter: stable; }
 
-/* ── theme tokens ─────────────────────────────────────────────
-   RGB triplets consumed by Tailwind (rgb(var / <alpha-value>)).
-   Palette "Voltage": deep graphite + electric blue + cyan. */
 :root {
   --c-bg-rgb: 11 15 20;
   --c-bg2-rgb: 14 20 27;
@@ -54,7 +45,7 @@ html.light {
   --outline-ink: #3D4A59;
 }
 
-/* Admin-published design tokens are applied at runtime from the theme API. */
+/* Admin-published tokens come from the theme API. */
 body { font-family: var(--theme-font, 'Space Grotesk', sans-serif); font-size: var(--theme-font-size, 15px); font-weight: var(--theme-font-weight, 400); line-height: var(--theme-line-height, 1.6); }
 .container { max-width: var(--theme-container, 1280px) !important; }
 .home-hero-card { height: var(--theme-hero-height, clamp(400px, 42vw, 560px)); }
@@ -95,14 +86,13 @@ html[data-sidebar-style="hidden"] .shop-layout { grid-template-columns: minmax(0
   .home-hero-card { height: var(--theme-tablet-hero-height, 420px); }
 }
 
-/* ── typography: Space Grotesk (self-hosted variable, 300–700) ── */
 @font-face {
   font-family: 'Space Grotesk';
   src: url('/fonts/SpaceGrotesk-var.woff2') format('woff2-variations');
   font-weight: 300 700;
   font-display: optional;
 }
-/* Bengali variable font (weights 100-900 in one file), self-hosted */
+
 @font-face {
   font-family: 'Noto Sans Bengali';
   src: url('/fonts/NotoSansBengali-400.woff2') format('woff2');
@@ -139,14 +129,11 @@ body.lock { overflow: hidden; }
   }
 }
 
-/* outline display text (thin, precise) */
 .text-outline { color: transparent; -webkit-text-stroke: 1.2px var(--outline-ink); }
 
-/* scroll reveal (progressive enhancement) */
 .reveal { opacity: 0; transform: translateY(30px); transition: opacity .8s cubic-bezier(.2,.7,.3,1), transform .8s cubic-bezier(.2,.7,.3,1); }
 .reveal.in { opacity: 1; transform: translateY(0); }
 
-/* Featured hero and promo cards use one shared, responsive container. */
 .home-hero-zone {
   padding-top: 1.5rem;
 }
@@ -263,8 +250,7 @@ body.lock { overflow: hidden; }
   }
 }
 
-/* ── BN/EN language toggle: Bangla typography ────────────────
-   Bangla glyphs for every font slot; neutralize case/tracking. */
+/* Bengali typography adjustments. */
 html[lang="bn"] body,
 html[lang="bn"] .font-disp,
 html[lang="bn"] .font-head,
@@ -276,10 +262,7 @@ html[lang="bn"] [class*="uppercase"] { text-transform: none; }
 html[lang="bn"] [class*="tracking-"] { letter-spacing: normal; }
 html[lang="bn"] .font-disp, html[lang="bn"] .font-head, html[lang="bn"] .font-cond { font-weight: 700; }
 
-/* ── Step 3 audit — keyboard focus visibility (a11y) ──────────
-   Same doctrine the admin panel adopted in Step 2.4: mouse users see nothing,
-   keyboard users always see where they are. Uses the theme-aware outline ink
-   (--outline-ink flips dark↔light) and never fires for pointer input. */
+/* Keep keyboard focus visible and theme-aware. */
 :focus-visible {
   outline: 2px solid var(--outline-ink, #8FA3B8);
   outline-offset: 2px;
@@ -289,9 +272,6 @@ button:focus-visible:not(.bg-transparent) {
   outline-color: currentColor;
 }
 
-/* Compact storefront rhythm: routed pages share one balanced vertical inset.
-   The selectors intentionally target the shared page section pattern so page
-   components do not need separate spacing overrides. */
 section[id^="page-"].py-16,
 section[id^="page-"].py-24,
 section.page.py-16,
@@ -299,8 +279,6 @@ section.page.py-24 {
   padding-block: clamp(2.75rem, 5vw, 4.5rem) !important;
 }
 
-/* Homepage section rhythm: keep every data-driven shelf/block compact and
-   consistent, including loading skeleton sections. */
 section.hsec[class~="py-16"],
 section.hsec[class~="py-20"],
 section.hsec[class~="py-24"] {
@@ -316,7 +294,6 @@ section.hsec[class~="pb-24"] {
   padding-bottom: clamp(2.25rem, 4vw, 4rem) !important;
 }
 
-/* Catalog filters: compact product-filter sidebar with card-like groups. */
 .shop-tools {
   background: transparent;
 }
@@ -652,8 +629,6 @@ html[lang="bn"] .shop-brand-filter > button {
   text-transform: none;
 }
 
-/* Product shelves show two readable cards on phones, three on medium screens
-   and four on wide screens while preserving the carousel gap. */
 .product-shelf-card {
   width: calc((100% - 1.1rem) / 2);
 }

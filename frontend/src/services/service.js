@@ -1,5 +1,3 @@
-/* ArixGear services — after-sales suite (Phase 4 endpoints, Phase 6d storefront):
-   warranty registration / lookup, service tickets / tracking, center list */
 import { api } from './http.js';
 
 /* POST /api/service/warranty — { orderNumber, phone, productSlug?, serial?, email?, notes?, purchaseDate? }

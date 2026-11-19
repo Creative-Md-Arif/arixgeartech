@@ -7,7 +7,6 @@ import { listBanners } from '../services/banners.js';
 import { listHomeSections } from '../services/sections.js';
 import { getCategoryTree } from '../services/categories.js';
 
-/* empty shells — filled (or replaced) by the API responses */
 export const EMPTY_PAY_INFO = {
   bkash: { label: 'bKash', num: '', ussd: '', type: 'Send Money', who: '' },
   nagad: { label: 'Nagad', num: '', ussd: '', type: 'Send Money', who: '' },
@@ -36,18 +35,18 @@ export function ContentProvider({ children }) {
   const [shipCfg, setShipCfg] = useState(EMPTY_SHIP);
   const [heroSlides, setHeroSlides] = useState([]);
   const [sideBanners, setSideBanners] = useState(() => {
-    const cached = readHomeCache('forged_home_side_banners', null);
+    const cached = readHomeCache('arixgear_home_side_banners', null);
     return Array.isArray(cached) ? cached : [];
-  });   /* Phase 3 — hero side promos */
+  });
   const [catTree, setCatTree] = useState(() => {
-    const cached = readHomeCache('forged_category_tree', null);
+    const cached = readHomeCache('arixgear_category_tree', null);
     return cached && Array.isArray(cached.items) ? cached.items : [];
-  });           /* Phase 3 — secondary category navbar */
-  const [catTreeReady, setCatTreeReady] = useState(() => !!readHomeCache('forged_category_tree', null));
+  });
+  const [catTreeReady, setCatTreeReady] = useState(() => !!readHomeCache('arixgear_category_tree', null));
   const [catTreeError, setCatTreeError] = useState(false);
   const categoryTreeRequest = useRef(false);
   const [homeSections, setHomeSections] = useState(() => {
-    const cached = readHomeCache('forged_home_sections', null);
+    const cached = readHomeCache('arixgear_home_sections', null);
     return cached && Array.isArray(cached.items) && Array.isArray(cached.hidden)
       ? cached
       : { items: [], hidden: [] };
@@ -62,7 +61,7 @@ export function ContentProvider({ children }) {
       const d = await getCategoryTree();
       const items = d && Array.isArray(d.items) ? d.items : [];
       setCatTree(items);
-      try { localStorage.setItem('forged_category_tree', JSON.stringify({ items })); } catch {}
+      try { localStorage.setItem('arixgear_category_tree', JSON.stringify({ items })); } catch {}
     } catch (_e) {
       setCatTreeError(true);
     } finally {
@@ -94,15 +93,15 @@ export function ContentProvider({ children }) {
         if (d && d.items) {
           const items = d.items.slice(0, 2);
           setSideBanners(items);
-          try { localStorage.setItem('forged_home_side_banners', JSON.stringify(items)); } catch {}
+          try { localStorage.setItem('arixgear_home_side_banners', JSON.stringify(items)); } catch {}
         }
-      }), /* spec: 2 side promos */
+      }),
       refreshCategoryTree(),
       listHomeSections().then((d) => {
         if (d && d.items) {
           const next = { items: d.items, hidden: d.hidden || [] };
           setHomeSections(next);
-          try { localStorage.setItem('forged_home_sections', JSON.stringify(next)); } catch {}
+          try { localStorage.setItem('arixgear_home_sections', JSON.stringify(next)); } catch {}
         }
       }),
     ];
@@ -134,7 +133,7 @@ export function ContentProvider({ children }) {
         if (!d || !d.items) return;
         const next = { items: d.items, hidden: d.hidden || [] };
         setHomeSections(next);
-        try { localStorage.setItem('forged_home_sections', JSON.stringify(next)); } catch {}
+        try { localStorage.setItem('arixgear_home_sections', JSON.stringify(next)); } catch {}
       }).catch(() => {});
     };
     const onFocus = () => refreshHomeSections();

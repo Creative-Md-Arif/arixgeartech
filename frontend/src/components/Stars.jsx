@@ -1,4 +1,3 @@
-/* ArixGear component — star rating renderer */
 export default function Stars({ rating = 0 }) {
   const stars = [];
   for (let i = 1; i <= 5; i++) {

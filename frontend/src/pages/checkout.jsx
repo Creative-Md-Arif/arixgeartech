@@ -1,5 +1,3 @@
-/* ArixGear page — checkout: totals, coupon, division shipping, manual payments (bKash/Nagad/Rocket/COD), place order.
-   React 18 port of _legacy/frontend-vanilla/checkout.html + js/pages/checkout.js (behavior spec). */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createOrder, validateCoupon, previewOrder, initPayment } from '../services/orders.js';
 import { activeCoupons } from '../services/coupons.js';
@@ -14,14 +12,14 @@ import { useContent } from '../store/content.jsx';
 import { useUI } from '../store/ui.jsx';
 import { useLang } from '../lib/i18n.jsx';
 
-/* payment method rows (brand chips approximated with palette tokens — no hex in JSX) */
+/*payment method rows (brand chips approximated with palette tokens — no hex in JSX)*/
 const METHODS = [
   { key: 'bkash', name: 'bKash', sub: 'Send Money · TrxID + screenshot', chip: 'bg-pink-600 text-white' },
   { key: 'nagad', name: 'Nagad', sub: 'Send Money · TrxID + screenshot', chip: 'bg-red text-white' },
   { key: 'rocket', name: 'Rocket', sub: 'Send Money · TrxID + screenshot', chip: 'bg-purple-700 text-white' },
   { key: 'cod', name: 'Cash on Delivery', sub: 'Pay cash when the gear lands', chip: 'bg-panel2 border border-line2 text-silver' },
 ];
-/* Task 40 — SSLCOMMERZ row, injected only while the admin gateway is enabled */
+/*SSLCOMMERZ row, injected only while the admin gateway is enabled*/
 const GW_METHOD = { key: 'sslcommerz', name: 'Online Pay', sub: 'Card / Net Banking / Wallet · SSLCOMMERZ', chip: 'bg-panel2 border border-acc text-acc' };
 const MOBILE_METHODS = ['bkash', 'nagad', 'rocket'];
 
@@ -40,18 +38,16 @@ export default function Page() {
 
   const [payMethod, setPayMethod] = useState('bkash');
   const [payShot, setPayShot] = useState(null);
-  const [shot, setShot] = useState(null); /* {name,size,url} preview info */
+  const [shot, setShot] = useState(null);
   const [promoText, setPromoText] = useState('');
   const [busy, setBusy] = useState(false);
   const [bad, setBad] = useState({});
   const [drag, setDrag] = useState(false);
-  const [gateway, setGateway] = useState(null); /* Task 40 — { enabled, sandbox, provider } */
-  const [guest, setGuest] = useState(true); /* Task 52 — guest checkout policy (default ON) */
+  const [gateway, setGateway] = useState(null);
+  const [guest, setGuest] = useState(true);
   const fileRef = useRef(null);
 
-  /* Task 40 + 52 — is the online gateway live? is guest checkout allowed?
-     A disabled/failed call simply hides the Online Pay row; the page never
-     blocks on the call itself. */
+  /*+ 52 — is the online gateway live? is guest checkout allowed? A disabled/failed call simply hides the Online Pay row; the page never blocks on the call itself.*/
   useEffect(() => {
     let on = true;
     getPayment().then((d) => {
@@ -62,9 +58,7 @@ export default function Page() {
     return () => { on = false; };
   }, []);
 
-  /* Task 28 — idempotency key: one per checkout attempt. A double-click or a
-     network retry re-sends the SAME key, the server returns the original order
-     and no second charge happens. Cleared after success / cart changes. */
+  /*idempotency key: one per checkout attempt. A double-click or a network retry re-sends the SAME key, the server returns the original order and no second charge happens. Cleared after success / cart changes.*/
   const idemRef = useRef(null);
   const getIdemKey = () => {
     if (!idemRef.current) {
@@ -75,7 +69,7 @@ export default function Page() {
     return idemRef.current;
   };
 
-  /* prefilled from session, exactly like legacy initPage() (checkout branch) */
+  /*prefilled from session, exactly like legacy initPage() (checkout branch)*/
   const [form, setForm] = useState(() => {
     const u = (session && session.user) || {};
     return {
@@ -94,7 +88,7 @@ export default function Page() {
     setBad((b) => (b[k] ? { ...b, [k]: false } : b));
   };
 
-  /* ---------- totals: discount (fixed vs percent), division shipping, free-shipping threshold ---------- */
+  /*---------- totals: discount (fixed vs percent), division shipping, free-shipping threshold ----------*/
   const { sum, disc, shipCost, total, items } = useMemo(() => {
     const t = cartTotals();
     const d = promo ? (promo.type === 'fixed' ? Math.min(promo.value, t.sum) : Math.round(t.sum * promo.value) / 100) : 0;
@@ -108,7 +102,7 @@ export default function Page() {
     return { sum: t.sum, disc: d, shipCost: ship, total: grand, items: list };
   }, [cartTotals, promo, division, divCharge, FREE_SHIP, cart, BY_ID, isBn]);
 
-  /* Task 56-a — loyalty redemption: balance + rules load once per session */
+  /*loyalty redemption: balance + rules load once per session*/
   const [loyal, setLoyal] = useState(null);
   const [ptsInput, setPtsInput] = useState('');
   useEffect(() => {
@@ -121,10 +115,7 @@ export default function Page() {
   const authedPts = Boolean(session?.token);
   const ptsUsable = Boolean(authedPts && loyal && loyal.rules.enabled && loyal.points >= (loyal.rules.minRedeem || 1));
 
-  /* Task 28 — server preview: debounced POST /api/orders/preview returns the
-     REAL server totals (price rules, coupon validity, division shipping, free-
-     shipping gap). The summary box prefers these; local calc stays as fallback
-     and instant paint. Coupon errors surface through couponMessage. */
+  /*server preview: debounced POST /api/orders/preview returns the REAL server totals (price rules, coupon validity, division shipping, free- shipping gap). The summary box prefers these; local calc stays as fallback and instant paint. Coupon errors surface through couponMessage.*/
   const [srv, setSrv] = useState(null);
   useEffect(() => {
     const list = Object.keys(cart).map((k) => cart[k].bundle ? ({ bundle: cart[k].bundle, qty: cart[k].qty }) : ({ slug: cart[k].id, qty: cart[k].qty, size: cart[k].size || undefined }));
@@ -133,15 +124,15 @@ export default function Page() {
       try {
         const d = await previewOrder({ items: list, couponCode: promo ? promo.code : null, division: division || 'dhaka', redeemPoints: ptsUsable ? pts : 0 });
         setSrv(d);
-      } catch (e) { setSrv(null); /* server preview is best-effort */ }
+      } catch (e) { setSrv(null);  }
     }, 400);
     return () => clearTimeout(t);
   }, [cart, promo, division, pts, ptsUsable]);
 
-  /* redemption block straight from the server preview — null when invalid */
+  /*redemption block straight from the server preview — null when invalid*/
   const rd = srv && srv.redemption ? srv.redemption : null;
 
-  /* display values — server numbers win when they have landed */
+  /*display values — server numbers win when they have landed*/
   const V = srv ? { sum: srv.subtotal, disc: srv.discount, shipCost: srv.shipping, total: srv.grandTotal } : { sum, disc, shipCost, total };
 
   const mob = MOBILE_METHODS.includes(payMethod);
@@ -150,11 +141,11 @@ export default function Page() {
   const gwOn = Boolean(gateway && gateway.enabled);
   const PAY_ROWS = gwOn ? [...METHODS, GW_METHOD] : METHODS;
 
-  /* Task 52 — account gate: admin turned guest checkout off AND no session */
+  /*account gate: admin turned guest checkout off AND no session*/
   const authed = Boolean(session && session.user);
   const needLogin = !guest && !authed;
 
-  /* ---------- Meta Pixel: InitiateCheckout — once per checkout page view with a loaded cart ---------- */
+  /*---------- Meta Pixel: InitiateCheckout — once per checkout page view with a loaded cart ----------*/
   const pxOnce = useRef(false);
   useEffect(() => {
     if (pxOnce.current) return;
@@ -170,13 +161,12 @@ export default function Page() {
           currency: 'BDT',
         });
       }
-    } catch (e) { /* pixel never blocks checkout */ }
-  }, []); /* eslint-disable-line react-hooks/exhaustive-deps */
+    } catch (e) {}
+  }, []); /*eslint-disable-line react-hooks/exhaustive-deps*/
 
-  /* ---------- coupon ---------- */
-  /* Task 29 — public coupon picker: safe-to-advertise codes rendered as chips */
+  /*public coupon picker: safe-to-advertise codes rendered as chips*/
   const [publicCoupons, setPublicCoupons] = useState([]);
-  const [promoMeta, setPromoMeta] = useState(null); /* { usageLeft, minRemaining } from validate */
+  const [promoMeta, setPromoMeta] = useState(null); /*{ usageLeft, minRemaining } from validate*/
   useEffect(() => {
     let dead = false;
     activeCoupons().then((d) => { if (!dead) setPublicCoupons(d.items || []); }).catch(() => {});
@@ -187,7 +177,7 @@ export default function Page() {
     const v = String(override !== undefined ? override : promoText).trim().toUpperCase();
     if (!v) { toast(t('Enter a code'), t('Type a promo code first.')); return; }
     const { sum: s } = cartTotals();
-    /* scoped coupons need per-line totals — prices come from the local mirror */
+    /*scoped coupons need per-line totals — prices come from the local mirror*/
     const lines = Object.keys(cart).map((k) => ({
       slug: cart[k].id,
       lineTotal: Math.round((cart[k].price || BY_ID[cart[k].id]?.price || 0) * cart[k].qty * 100) / 100,
@@ -198,20 +188,14 @@ export default function Page() {
       setPromoMeta({ usageLeft: d.usageLeft, minRemaining: d.minRemaining, scoped: d.scoped });
       toast(t('Code applied'), d.code + ' — ' + money(d.discount) + ' off.' + (d.usageLeft != null ? ' ' + d.usageLeft + ' uses left.' : ''));
     } catch (e) {
-      /* Step 3 audit — the old branch here applied a client-side "FORGE10 −10%"
-         fallback when the API was unreachable. The server is the source of
-         truth for coupons: with the API down the order cannot be placed at all,
-         and FORGE10 is not a real code (the newsletter welcome coupon is
-         ARIX10) — so the branch only produced a discount the backend would
-         refuse, i.e. a broken checkout. Removed; the offline toast below is
-         the honest outcome. */
+
       setPromo(null);
       setPromoMeta(null);
       toast(t('Invalid code'), e.message || t('That code did not survive the cut.'));
     }
   };
 
-  /* ---------- manual payment helpers ---------- */
+  /*---------- manual payment helpers ----------*/
   const copyNum = () => {
     const info = payInfo[payMethod] || payInfo.bkash;
     const num = (info.num || '').replace(/[^0-9]/g, '');
@@ -236,7 +220,7 @@ export default function Page() {
   };
   const removeShot = () => { setPayShot(null); setShot(null); if (fileRef.current) fileRef.current.value = ''; };
 
-  /* ---------- place order: validate → multipart POST /api/orders ---------- */
+  /*---------- place order: validate → multipart POST /api/orders ----------*/
   const placeOrder = async () => {
     if (needLogin) {
       toast(t('Account required'), t('Guest checkout is off — log in to place your order.'));
@@ -246,8 +230,7 @@ export default function Page() {
     const b = {};
     ['email', 'phone', 'first', 'last', 'addr', 'city'].forEach((k) => { if (!String(form[k]).trim()) b[k] = true; });
     if (!/\S+@\S+\.\S+$/.test(form.email)) b.email = true;
-    /* Task 28 — BD mobile validation (01[3-9]XXXXXXXX, 880/+880 normalized) —
-       mirrors the server rule so customers get told before submitting. */
+    /*BD mobile validation (01[3-9]XXXXXXXX, 880/+880 normalized) — mirrors the server rule so customers get told before submitting.*/
     const phNorm = form.phone.replace(/\D/g, '').replace(/^880/, '0').slice(-11);
     if (!/^01[3-9]\d{8}$/.test(phNorm)) b.phone = true;
     if (mob) {
@@ -259,59 +242,8 @@ export default function Page() {
     if (mob && !payShot) { toast(t('Screenshot missing'), t('Upload the payment screenshot so we can verify your transaction.')); return; }
     if (total <= 0) { toast(t('Cart is empty'), t('Add gear before placing an order.')); return; }
     setBusy(true);
-    try {
-      /* Server recalculates prices, coupon and division shipping — client totals are informational only. */
-      const payload = {
-        customer: { name: form.first.trim() + ' ' + form.last.trim(), phone: form.phone.trim(), email: form.email.trim() },
-        shipping: { address: form.addr.trim(), city: form.city.trim(), division: division || 'dhaka', postal: form.zip.trim(), notes: '' },
-        items: Object.keys(cart).map((k) => { const it = cart[k]; return it.bundle ? { bundle: it.bundle, qty: it.qty } : { slug: it.id, qty: it.qty, size: it.size || undefined, color: it.color || undefined }; }),
-        couponCode: promo ? promo.code : null,
-        redeemPoints: rd ? rd.points : 0,
-        paymentMethod: payMethod,
-        trxId: mob ? form.txn.trim() : '',
-        senderNumber: '',
-        idempotencyKey: getIdemKey(),
-      };
-      const d = await createOrder({ payload: JSON.stringify(payload), screenshot: mob && payShot ? payShot : null });
-      idemRef.current = null; /* next order gets a fresh key */
-      const order = adaptOrder(d.order);
-      setLastOrder(order);
-      pushOrder(order);
-
-      /* Task 40 — online payment: hand over to SSLCOMMERZ instead of the
-         local success screen. Cart clears only when the session starts; if
-         the gateway refuses, the cart stays so the customer can retry. */
-      if (payMethod === 'sslcommerz') {
-        try {
-          const gw = await initPayment({ orderNumber: order.no, phone: form.phone.trim() });
-          setCart({});
-          window.location.href = gw.redirect;
-          return;
-        } catch (e2) {
-          toast('Payment could not start', (e2.message || 'Gateway unavailable') + ' — your order ' + order.no + ' is saved; we will contact you.');
-          return;
-        }
-      }
-
-      setCart({});
-      go('success');
-      toast(t('Order locked in'), mob ? t('We will verify your payment and confirm shortly.') : t('Pay cash when the gear lands. Dispatch within 24 hours.'));
-    } catch (e) {
-      toast(e.offline ? t('API offline') : t('Order failed'), e.message || t('Something went wrong — try again.'));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const blockH3 = 'font-disp font-normal text-xl uppercase tracking-[.03em] flex items-center gap-3.5 mb-5';
-  const numChip = 'not-italic flex-none w-[30px] h-[30px] inline-flex items-center justify-center bg-acc text-black font-cond font-bold text-[.9rem]';
-  const line = 'flex justify-between gap-3 py-2 border-t border-line text-[.9rem] text-muted';
-
-  return (
-    <section id="checkout" className="bg-bg2 border-t border-line py-16 md:py-24">
-      <div className="container mx-auto w-[92%]">
-        {/* ---------- page head ---------- */}
-        <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 animate-fadeIn">
+    try {/*Server recalculates prices, coupon and division shipping — client totals are informational only.*/ const payload = { customer: { name: form.first.trim() + ' ' + form.last.trim(), phone: form.phone.trim(), email: form.email.trim() }, shipping: { address: form.addr.trim(), city: form.city.trim(), division: division || 'dhaka', postal: form.zip.trim(), notes: '' }, items: Object.keys(cart).map((k) => { const it = cart[k]; return it.bundle ? { bundle: it.bundle, qty: it.qty } : { slug: it.id, qty: it.qty, size: it.size || undefined, color: it.color || undefined }; }), couponCode: promo ? promo.code : null, redeemPoints: rd ? rd.points : 0, paymentMethod: payMethod, trxId: mob ? form.txn.trim() : '', senderNumber: '', idempotencyKey: getIdemKey(), }; const d = await createOrder({ payload: JSON.stringify(payload), screenshot: mob && payShot ? payShot : null }); idemRef.current = null;  const order = adaptOrder(d.order); setLastOrder(order); pushOrder(order); /*online payment: hand over to SSLCOMMERZ instead of the local success screen. Cart clears only when the session starts; if the gateway refuses, the cart stays so the customer can retry.*/ if (payMethod === 'sslcommerz') { try { const gw = await initPayment({ orderNumber: order.no, phone: form.phone.trim() }); setCart({}); window.location.href = gw.redirect; return; } catch (e2) { toast('Payment could not start', (e2.message || 'Gateway unavailable') + ' — your order ' + order.no + ' is saved; we will contact you.'); return; } } setCart({}); go('success'); toast(t('Order locked in'), mob ? t('We will verify your payment and confirm shortly.') : t('Pay cash when the gear lands. Dispatch within 24 hours.')); } catch (e) { toast(e.offline ? t('API offline') : t('Order failed'), e.message || t('Something went wrong — try again.')); } finally { setBusy(false); } }; const blockH3 = 'font-disp font-normal text-xl uppercase tracking-[.03em] flex items-center gap-3.5 mb-5'; const numChip = 'not-italic flex-none w-[30px] h-[30px] inline-flex items-center justify-center bg-acc text-black font-cond font-bold text-[.9rem]'; const line = 'flex justify-between gap-3 py-2 border-t border-line text-[.9rem] text-muted'; return ( <section id="checkout" className="bg-bg2 border-t border-line py-16 md:py-24"> <div className="container mx-auto w-[92%]">
+<div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 animate-fadeIn">
           <div>
             <p className="font-cond uppercase tracking-[.45em] text-acc text-[.82rem] font-semibold flex items-center gap-3">
               <i className="not-italic w-9 h-0.5 bg-acc" />{t('One Page · No Runaround')}
@@ -322,10 +254,10 @@ export default function Page() {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-[1.15fr_.85fr] gap-6 lg:gap-10 items-start mt-10 animate-slideUp">
-          {/* ==================== LEFT: forms ==================== */}
+          {/*==================== LEFT: forms ====================*/}
           <div>
             {needLogin ? (
-              /* Task 52 — guest checkout disabled: account gate replaces the form */
+              /*guest checkout disabled: account gate replaces the form*/
               <div className="border border-line bg-panel p-6 sm:p-8 md:p-10 text-center" id="guestGate">
                 <svg viewBox="0 0 24 24" className="w-[42px] h-[42px] stroke-acc fill-none mx-auto" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                   <rect x="3" y="11" width="18" height="10" rx="1.5" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /><circle cx="12" cy="16" r="1.4" />
@@ -338,7 +270,7 @@ export default function Page() {
                     {t('Log In / Create Account')}
                   </button>
                 </div>
-                {/* Task 58 — show what is actually saved so the gate feels reassuring, not lossy */}
+                {/*show what is actually saved so the gate feels reassuring, not lossy*/}
                 {items.length ? (
                   <div id="gateCart" data-testid="gateCart" className="mx-auto mt-4 flex max-w-[460px] flex-wrap items-center justify-center gap-x-3 gap-y-1 border border-line2 bg-bg2 px-4 py-2.5">
                     <span className="font-cond text-[.74rem] font-semibold uppercase tracking-[.14em] text-silver2">{t('Cart saved — {n} item(s)', { n: items.length })}</span>
@@ -349,7 +281,7 @@ export default function Page() {
                 <p className="text-dim text-[.78rem] mt-4">{t('Your cart stays saved on this device.')}</p>
               </div>
             ) : (<>
-            {/* 01 — contact */}
+
             <div className="border border-line bg-panel p-4 sm:p-6 md:p-7 mb-5">
               <h3 className={blockH3}><i className={numChip}>01</i>{t('Contact')}</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
@@ -366,7 +298,6 @@ export default function Page() {
               </div>
             </div>
 
-            {/* 02 — shipping */}
             <div className="border border-line bg-panel p-4 sm:p-6 md:p-7 mb-5">
               <h3 className={blockH3}><i className={numChip}>02</i>{t('Shipping')}</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
@@ -417,12 +348,11 @@ export default function Page() {
               </div>
             </div>
 
-            {/* 03 — payment */}
             <div className="border border-line bg-panel p-4 sm:p-6 md:p-7">
               <h3 className={blockH3}><i className={numChip}>03</i>{t('Payment')}</h3>
               <p className="text-[.85rem] text-muted -mt-2 mb-4">Manual payments or online card — pick a method. Send-the-total proof for mobile wallets, secure redirect for cards.</p>
 
-              {/* radio group: bKash / Nagad / Rocket / COD / Online Pay (when gateway on) */}
+              {/*radio group: bKash / Nagad / Rocket / COD / Online Pay (when gateway on)*/}
               <div id="payMethods" role="radiogroup" aria-label="Payment method" className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {PAY_ROWS.map((x) => {
                   const sel = payMethod === x.key;
@@ -445,7 +375,7 @@ export default function Page() {
                 })}
               </div>
 
-              {/* Task 40 — SSLCOMMERZ panel: no TrxID, no screenshot — secure redirect */}
+              {/*SSLCOMMERZ panel: no TrxID, no screenshot — secure redirect*/}
               {payMethod === 'sslcommerz' ? (
                 <div id="payPanelGw" className="border border-acc/60 bg-acc/[.05] px-4 py-4 sm:px-5 sm:py-5 mt-4">
                   <p className="font-head font-bold text-[.85rem] tracking-[.06em] uppercase text-acc mb-1.5">Secure redirect · SSLCOMMERZ</p>
@@ -458,7 +388,7 @@ export default function Page() {
                 </div>
               ) : null}
 
-              {/* mobile-money panel (bKash / Nagad / Rocket) */}
+              {/*mobile-money panel (bKash / Nagad / Rocket)*/}
               <div id="payPanelMobile" hidden={!mob} className="border border-line bg-bg2 px-4 py-4 sm:px-5 sm:py-5 mt-4">
                 <ol className="list-decimal pl-5 grid gap-1.5 text-[.85rem] text-muted mb-4">
                   <li>Open your <b id="payAppName" className="text-txt">{m.label}</b> app or dial <b id="payUssd" className="text-acc font-mono">{m.ussd}</b></li>
@@ -514,7 +444,6 @@ export default function Page() {
                 </div>
               </div>
 
-              {/* COD panel */}
               <div id="payPanelCod" hidden={mob} className="border border-line bg-bg2 px-4 py-4 sm:px-5 sm:py-5 mt-4">
                 <div className="flex gap-3 items-start">
                   <svg viewBox="0 0 24 24" className="flex-none w-[34px] h-[34px] stroke-acc fill-none" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -531,7 +460,7 @@ export default function Page() {
             </>)}
           </div>
 
-          {/* ==================== RIGHT: order summary ==================== */}
+          {/*==================== RIGHT: order summary ====================*/}
           <aside className="border border-line2 bg-panel p-4 sm:p-6 lg:sticky lg:top-[100px]">
             <h3 className="font-disp font-normal text-xl uppercase mb-5">{t('Order Summary')}</h3>
             <div id="coItems" className="grid gap-3 max-h-[280px] overflow-y-auto mb-4 pr-1">
@@ -575,7 +504,7 @@ export default function Page() {
                 ))}
               </div>
             ) : null}
-            {/* Task 56-a — loyalty points redemption */}
+
             {authed && loyal ? (
               ptsUsable ? (
                 <div id="redeemBox" className="mt-3 border border-line bg-bg2 p-3" data-testid="redeemBox">

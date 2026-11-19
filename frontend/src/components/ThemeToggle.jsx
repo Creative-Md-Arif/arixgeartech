@@ -1,15 +1,8 @@
-/* ArixGear theme toggle — Task 47, pill variant Task 54.
-   One class flip on <html> (light) re-themes the whole store via the CSS
-   var tokens in index.css. Persisted in localStorage (forged_theme); the
-   no-flash inline script in index.html applies it before first paint.
-   variant="icon" (default) → 40×40 header icon button (desktop header)
-   variant="pill"           → labeled pill for the mobile menu top bar
-   Both instances share one module-level store — flipping one updates the
-   other instantly (desktop header stays mounted but hidden on mobile). */
+/* Desktop and mobile theme toggles share state. */
 import { useEffect, useState } from 'react';
 import { useLang } from '../lib/i18n.jsx';
 
-const KEY = 'forged_theme';
+const KEY = 'arixgear_theme';
 
 /* --- tiny shared theme store (module singleton) --- */
 const listeners = new Set();

@@ -3,6 +3,9 @@ import { api } from './http.js';
 
 export const list = () => api('/admin/customers');
 
+/* DELETE /api/admin/customers/:id — remove a customer account */
+export const deleteCustomer = (id) => api('/admin/customers/' + id, { method: 'DELETE' });
+
 /* POST /api/admin/customers/:id/reset-password — ERP-assisted reset link
    (admin copies it and sends to the customer via WhatsApp / Messenger / SMS) */
 export const resetPasswordLink = (id) => api('/admin/customers/' + id + '/reset-password', { method: 'POST' });

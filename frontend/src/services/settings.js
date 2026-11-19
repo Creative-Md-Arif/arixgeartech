@@ -1,4 +1,3 @@
-/* ArixGear services — public settings (content, payment, shipping, pixel, chat, size guide) */
 import { api } from './http.js';
 
 export const getContent = (signal) => api('/settings/content', { auth: false, signal });

@@ -1,4 +1,3 @@
-/* ArixGear page — order success summary (React 18 port of _legacy/frontend-vanilla/success.html + js/pages/success.js). */
 import { useEffect, useMemo } from 'react';
 import { money, etaDate, DIV_LABELS } from '../lib/format.js';
 import { go } from '../lib/go.js';
@@ -18,14 +17,12 @@ export default function Page() {
   const { toast } = useUI();
 
   const o = useMemo(() => lastOrder || orders[0] || null, [lastOrder, orders]);
-  /* Task 40 — gateway-paid orders are ALREADY confirmed; copy must not say "verifying".
-     The stored order snapshot still says "pending" (it was taken at place time), so the
-     server's success redirect (?paid=1 — only issued after validation) also counts. */
+  /*gateway-paid orders are ALREADY confirmed; copy must not say "verifying". The stored order snapshot still says "pending" (it was taken at place time), so the server's success redirect (?paid=1 — only issued after validation) also counts.*/
   const gwPaidParam = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('paid') === '1';
   const paidOnline = Boolean(o && (o.payStatus === 'paid' || (gwPaidParam && o.pay && o.pay === 'sslcommerz')));
   const mobPay = Boolean(o && o.pay && o.pay !== 'cod');
 
-  /* Task 28 — one-tap invoice for the fresh order (phone comes from the order itself) */
+  /*one-tap invoice for the fresh order (phone comes from the order itself)*/
   const dlInvoice = async () => {
     if (!o || !o.no) return;
     try {
@@ -36,12 +33,12 @@ export default function Page() {
     }
   };
 
-  /* ---------- Meta Pixel: Purchase — once per order (localStorage-guarded, deduped on Meta side via eventID) ---------- */
+  /*---------- Meta Pixel: Purchase — once per order (localStorage-guarded, deduped on Meta side via eventID) ----------*/
   useEffect(() => {
     if (!o || !o.no) return undefined;
     const fire = () => {
       try {
-        const flag = 'forged_px_purchase_' + o.no;
+        const flag = 'arixgear_px_purchase_' + o.no;
         const pxOn = !!(window.arixPixel && window.arixPixel.enabled);
         const gaOn = !!(window.arixGA && window.arixGA.enabled);
         if ((pxOn || gaOn) && o.no && o.total > 0 && !localStorage.getItem(flag)) {
@@ -56,27 +53,17 @@ export default function Page() {
               num_items: o.items.reduce((a, b) => a + b.qty, 0),
               order_id: o.no,
             }, o.no);
-          } else {
-            /* GA only — pixel off, analytics on: fire the purchase straight to GA4 */
-            gaTrack('purchase', {
-              value: o.total,
-              currency: 'BDT',
-              transaction_id: o.no,
-              items: o.items.map((i) => ({ item_id: i.id, quantity: i.qty, price: i.price })),
-            });
-          }
-        }
-      } catch (e) { /* tracking never blocks the page */ }
+          } else {/*GA only — pixel off, analytics on: fire the purchase straight to GA4*/ gaTrack('purchase', { value: o.total, currency: 'BDT', transaction_id: o.no, items: o.items.map((i) => ({ item_id: i.id, quantity: i.qty, price: i.price })), }); } } } catch (e) { }
     };
     fire();
-    /* initPixel() races this page on cold load — one guarded retry if the flag never landed */
+    /*initPixel() races this page on cold load — one guarded retry if the flag never landed*/
     const t = setTimeout(() => {
-      try { if (!localStorage.getItem('forged_px_purchase_' + o.no)) fire(); } catch (e) {}
+      try { if (!localStorage.getItem('arixgear_px_purchase_' + o.no)) fire(); } catch (e) {}
     }, 1500);
     return () => clearTimeout(t);
-  }, [o && o.no]); /* eslint-disable-line react-hooks/exhaustive-deps */
+  }, [o && o.no]); /*eslint-disable-line react-hooks/exhaustive-deps*/
 
-  /* ---------- summary lines (legacy renderSuccess markup, React-escaped) ---------- */
+  /*---------- summary lines (legacy renderSuccess markup, React-escaped) ----------*/
   const lines = useMemo(() => {
     if (!o) return [];
     const eta = 'by ' + etaDate(o.raw && o.raw.eta ? o.raw.eta : Date.now() + 4 * 864e5);
@@ -107,7 +94,7 @@ export default function Page() {
     <section className="py-16 md:py-24">
       <div className="container mx-auto w-[92%]">
         <div className="max-w-[720px] mx-auto text-center border border-line bg-panel px-4 py-10 sm:px-8 sm:py-14 md:px-11 md:py-14 animate-slideUp">
-          {/* ok-ring: animated draw check */}
+          {/*ok-ring: animated draw check*/}
           <div className="w-[84px] h-[84px] mx-auto mb-6 rounded-full border-2 border-ok flex items-center justify-center animate-popIn">
             <svg viewBox="0 0 24 24" className="w-[34px] h-[34px] text-ok" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
               <path d="M4 12.5l5 5L20 6.5" className="animate-draw" style={{ strokeDasharray: 60, strokeDashoffset: 60 }} />

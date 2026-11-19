@@ -1,16 +1,14 @@
-/* ArixGear section — hero reel slideshow (admin banners → content.hero fallback copy).
-   Images: banner urls else the DEFAULT_SLIDES theme assets. Copy: the active banner
-   when present, else content.hero (backend contentDefaults — admin-editable). */
+/*hero reel slideshow (admin banners → content.hero fallback copy). Images: banner urls else the DEFAULT_SLIDES theme assets. Copy: the active banner when present, else content.hero (backend contentDefaults — admin-editable).*/
 import { useEffect, useRef, useState } from "react";
 import { useContent } from "../../store/content.jsx";
 import { useUI } from "../../store/ui.jsx";
 import { go } from "../../lib/go.js";
 import { bannerClick } from "../../services/banners.js";
 import { tr, pick, useLang } from "../../lib/i18n.jsx";
-import { safeHref } from "../../lib/sanitize.js"; /* Step 3 audit — banner/hero links are admin-authored; refuse javascript:/data: schemes */
+import { safeHref } from "../../lib/sanitize.js"; /*audit — banner/hero links are admin-authored; refuse javascript:/data: schemes*/
 import { OutlineTitle } from "./Head.jsx";
 
-const SLIDE_MS = 5600; /* legacy SLIDE_MS parity */
+const SLIDE_MS = 5600;
 
 const DEFAULT_SLIDES = [
   {
@@ -24,12 +22,12 @@ const DEFAULT_SLIDES = [
   },
 ];
 
-/* banner image url fix — same idea as the catalog adapter (absolute-ify relative paths) */
+/*banner image url fix — same idea as the catalog adapter (absolute-ify relative paths)*/
 const fixUrl = (u) =>
   !u ? "" : /^https?:/.test(u) ? u : u.startsWith("/") ? u : "/" + u;
 
 export default function Hero() {
-  useLang(); // Task 58 — subscribe so BN toggles re-render pick() copy
+  useLang();  // subscribe so BN toggles re-render pick() copy
   const { heroSlides, content } = useContent();
   const { toast } = useUI();
   const [i, setI] = useState(0);
@@ -44,8 +42,7 @@ export default function Hero() {
   const n = banners ? banners.length : DEFAULT_SLIDES.length;
   const cur = Math.min(i, n - 1);
 
-  /* auto-advance ~5s — effect re-arms on every index change so manual jumps reset the timer,
-     exactly like legacy heroPlay() + index-bar clicks */
+  /*auto-advance ~5s — effect re-arms on every index change so manual jumps reset the timer, exactly like legacy heroPlay() + index-bar clicks*/
   const toggleSound = (force) => {
     const next = typeof force === "boolean" ? force : !soundOn;
     setSoundOn(next);
@@ -83,28 +80,24 @@ export default function Hero() {
           audioRef.current.currentTime + 0.5,
         );
       }
-    } catch (e) {
-      /* webaudio unavailable — stay silent */
-    }
+    } catch (e) {}
   };
 
-  /* Task 38 — React 18 never re-applies the `muted` ATTRIBUTE after mount,
-     so flip the DOM property directly on every soundOn change (deterministic
-     unmute for hero videos; audio ambience continues separately). */
+  /*React 18 never re-applies the `muted` ATTRIBUTE after mount, so flip the DOM property directly on every soundOn change (deterministic unmute for hero videos; audio ambience continues separately).*/
   useEffect(() => {
     document.querySelectorAll("#hero video").forEach((v) => {
       v.muted = !soundOn;
     });
   }, [soundOn, cur]);
 
-  /* content.hero — the admin-editable fallback copy block (backend contentDefaults) */
+  /*content.hero — the admin-editable fallback copy block (backend contentDefaults)*/
   const hero = (content && content.hero) || {};
 
   const slides = banners
     ? banners.map((bn) => ({
         img: fixUrl((bn.poster && bn.poster.url) || (bn.image && bn.image.url)),
         alt: bn.title || hero.title || "",
-        /* Task 38 — video banners: muted autoplay, advance at the end, single-video loops */
+        /*video banners: muted autoplay, advance at the end, single-video loops*/
         video:
           bn.mediaType === "video" && bn.video && bn.video.url
             ? fixUrl(bn.video.url)
@@ -112,8 +105,7 @@ export default function Hero() {
       }))
     : DEFAULT_SLIDES;
 
-  /* Task 38 — while the ACTIVE slide is a video, the clip drives advancement
-     (onEnded) — suspend the interval timer so it never cuts the video short */
+  /*while the ACTIVE slide is a video, the clip drives advancement (onEnded) — suspend the interval timer so it never cuts the video short*/
   const curVideo = Boolean(slides[cur] && slides[cur].video);
   useEffect(() => {
     if (curVideo || paused || n < 2 || reduceMotion) return undefined;
@@ -121,9 +113,7 @@ export default function Hero() {
     return () => clearInterval(t);
   }, [n, i, paused, curVideo, reduceMotion]);
 
-  /* copy from the ACTIVE banner when present, else content.hero (admin-editable).
-     Task 58 — banner title/subtitle/ctaText go through pick() so BN mode shows
-     the Bengali twins when lang=bn (falls back to English when empty). */
+  /*copy from the ACTIVE banner when present, else content.hero (admin-editable). banner title/subtitle/ctaText go through pick() so BN mode shows the Bengali twins when lang=bn (falls back to English when empty).*/
   const bn = banners ? banners[cur] || null : null;
   const copy = {
     eyebrow: (bn && bn.eyebrow) || hero.eyebrow || "",
@@ -142,7 +132,6 @@ export default function Hero() {
     link: safeHref((bn && bn.link) || hero.link, "#new"),
   };
 
-  /* Task 30 — CTA click ping (fire-and-forget) so the admin click leaderboard works */
   const ctaGo = (e, link) => {
     e.preventDefault();
     if (bn && bn.id) bannerClick(bn.id);
@@ -157,16 +146,15 @@ export default function Hero() {
       onMouseLeave={() => setPaused(false)}
     >
       <style>{`
-@keyframes forgedKenburns{from{transform:scale(1) translateX(0)}to{transform:scale(1.1) translateX(-1.5%)}}
-@keyframes forgedIdxFill{to{transform:scaleX(1)}}
-@keyframes forgedBlink{50%{opacity:.25}}
-.hero-slide.active img{animation:forgedKenburns 7s ease-out forwards}
+@keyframes arixgearKenburns{from{transform:scale(1) translateX(0)}to{transform:scale(1.1) translateX(-1.5%)}}
+@keyframes arixgearIdxFill{to{transform:scaleX(1)}}
+@keyframes arixgearBlink{50%{opacity:.25}}
+.hero-slide.active img{animation:arixgearKenburns 7s ease-out forwards}
 .idx-fill{transform:scaleX(0);transform-origin:left}
-.idx-bar.active .idx-fill{animation:forgedIdxFill ${SLIDE_MS}ms linear forwards}
+.idx-bar.active .idx-fill{animation:arixgearIdxFill ${SLIDE_MS}ms linear forwards}
 .hero-paused .idx-fill{animation-play-state:paused}
 `}</style>
 
-      {/* media reel */}
       <div
         className="hero-media absolute inset-0 cursor-pointer"
         title="Click to unmute reel"
@@ -213,7 +201,6 @@ export default function Hero() {
         <div className="hero-shade hero-shade-bottom pointer-events-none absolute inset-0" />
       </div>
 
-      {/* copy */}
       <div className="hero-content container relative z-[2] mx-auto pb-[4.5rem]">
         <p className="eyebrow mb-[1.4rem] flex animate-heroIn items-center gap-3 font-cond text-[.82rem] font-semibold uppercase tracking-[.45em] text-acc">
           <i className="not-italic h-0.5 w-9 flex-none bg-acc" />
@@ -256,7 +243,6 @@ export default function Hero() {
         </div>
       </div>
 
-      {/* index bars + reel tools */}
       <div className="hero-foot container relative z-[2] mx-auto flex flex-wrap items-center justify-between gap-[1.5rem] pb-[1.8rem]">
         <div
           className={
@@ -280,7 +266,7 @@ export default function Hero() {
         </div>
         <div className="hero-tools flex flex-wrap items-center gap-[.8rem]">
           <span className="reel-chip hidden items-center gap-[.55rem] border border-line2 bg-black/40 px-[.9rem] py-[.5rem] font-cond text-[.78rem] font-semibold uppercase tracking-[.3em] text-white/85 sm:inline-flex">
-            <span className="h-[7px] w-[7px] rounded-full bg-acc [animation:forgedBlink_1.6s_ease_infinite]" />
+            <span className="h-[7px] w-[7px] rounded-full bg-acc [animation:arixgearBlink_1.6s_ease_infinite]" />
             {tr("Reel 001 — Playing")}
           </span>
           <button

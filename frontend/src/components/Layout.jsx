@@ -1,17 +1,16 @@
-/* ArixGear component — app chrome: providers + header + route outlet + overlays + footer.
-   Rendered ONCE around every route, so the header/cart/PDP state survives navigation. */
+/* App-wide providers and shared layout for storefront routes. */
 import { useEffect } from 'react';
 import { Outlet, useLocation, Link } from 'react-router-dom';
 import { CatalogProvider } from '../store/catalog.jsx';
 import { StoreProvider } from '../store/store.jsx';
 import { ContentProvider, useContent } from '../store/content.jsx';
 import { UIProvider, useUI } from '../store/ui.jsx';
-import { useLang } from '../lib/i18n.jsx'; /* Task 58 — bilingual maintenance message */
+import { useLang } from '../lib/i18n.jsx'; /* bilingual maintenance message */
 import { useStore } from '../store/store.jsx';
 import { useCatalog } from '../store/catalog.jsx';
 import { initPixel } from '../lib/pixel.js';
 import { initAnalytics } from '../lib/analytics.js';
-import { connectRealtime, disconnectRealtime } from '../lib/realtime.js'; /* Phase 7 — storefront socket client */
+import { connectRealtime, disconnectRealtime } from '../lib/realtime.js'; /* storefront socket client */
 import Header from './Header.jsx';
 import MobilePanel from './MobilePanel.jsx';
 import { CartDrawer, WishDrawer } from './Drawers.jsx';
@@ -32,7 +31,7 @@ function Chrome({ children }) {
 
   useEffect(() => { initPixel(); initAnalytics(); }, []); /* Meta Pixel + GA4 — admin-driven, once per boot */
 
-  /* Phase 7 — Socket.IO gateway client: connect with the session JWT (reconnect
+  /* Socket.IO gateway client: connect with the session JWT (reconnect
      on login/account switch, disconnect on logout). Guests stay offline — the
      SSE bell covers notifications; the socket adds live order rooms. */
   const { session } = useStore();
@@ -64,12 +63,12 @@ function Chrome({ children }) {
 }
 
 /* Full layout — wraps every storefront route (Outlet renders the active page) */
-/* Task 57 — maintenance gate: sits below ContentProvider so it can read the
+/* maintenance gate: sits below ContentProvider so it can read the
    live flag; when ON it replaces the whole chrome (header/footer/page) with
    the branded holding screen. Admin SPA is a separate build and unaffected. */
 function MaintainGate({ children }) {
   const { content } = useContent();
-  const { isBn, t } = useLang(); // Task 58 — Bengali maintenance message + live re-render
+  const { isBn, t } = useLang();
   if (content && content.maintenance && content.maintenance.enabled) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center bg-bg px-6 text-center" id="maintenanceScreen" data-testid="maintenance">
@@ -78,7 +77,7 @@ function MaintainGate({ children }) {
           <p className="font-cond text-[.85rem] font-bold uppercase tracking-[.3em] text-acc">⚒ {(isBn && content.maintenance.messageBn) ? content.maintenance.messageBn : (content.maintenance.message || 'Under Maintenance')}</p>
         </div>
         <p className="mt-6 max-w-md text-[.95rem] leading-relaxed text-muted">
-          {t('We are upgrading the forge. The shop reopens shortly — your cart and wishlist are safe, and order tracking stays live.')}
+          {t('We are upgrading the ArixGear. The shop reopens shortly — your cart and wishlist are safe, and order tracking stays live.')}
         </p>
         <button
           onClick={() => window.location.reload()}

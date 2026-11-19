@@ -1,11 +1,8 @@
-/* ArixGear component — PWA install prompt (Task 42).
-   Listens for beforeinstallprompt; after a short grace delay offers the
-   native install flow via a bottom card. Dismissal persists, standalone
-   sessions never see it, and a successful install fires a toast.           */
+/* Install prompt for eligible visitors who have not dismissed it. */
 import { useEffect, useState } from 'react';
 import { useUI } from '../store/ui.jsx';
 
-const KEY = 'forged_pwa_dismissed';
+const KEY = 'arixgear_pwa_dismissed';
 
 export default function InstallPrompt() {
   const { toast } = useUI();
@@ -17,7 +14,7 @@ export default function InstallPrompt() {
     let standalone = false;
     try {
       standalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
-    } catch (_) { /* older engines */ }
+    } catch (_) {}
     if (standalone) return undefined; /* already installed — never nag */
 
     let t = null;
@@ -25,8 +22,7 @@ export default function InstallPrompt() {
       e.preventDefault(); /* keep OUR button as the install entry */
       setDeferred(e);
       try { if (localStorage.getItem(KEY) === '1') return; } catch (_) {}
-      t = setTimeout(() => {
-        /* re-check at fire time — a dismissal that happened while the timer
+      t = setTimeout(() => {/*re-check at fire time — a dismissal that happened while the timer
            was pending (Chrome can fire the REAL event before the visitor
            dismisses anything) must never pop the card */
         try { if (localStorage.getItem(KEY) === '1') return; } catch (_) {}
@@ -55,7 +51,7 @@ export default function InstallPrompt() {
       const { outcome } = await deferred.userChoice;
       if (outcome === 'accepted') toast('Installing ArixGear…', 'ok');
       setDeferred(null); setShow(false);
-    } catch (_) { /* engine refused — stay silent */ }
+    } catch (_) { /* engine refused — stay silent*/}
     setBusy(false);
   };
 

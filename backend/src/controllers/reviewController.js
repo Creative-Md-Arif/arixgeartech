@@ -80,21 +80,25 @@ function voterKey(req) {
 
 /* ================= PUBLIC ================= */
 
-// GET /api/products/:slug/reviews?sort=new|helpful
-// → { items, summary:{avg,total,dist} } — approved only; `mine` flagged for JWT
+// GET /api/products/:slug/reviews?sort=new|helpful&page=1
+// Approved reviews only, with the full-product rating summary.
 exports.listByProduct = async (req, res, next) => {
   try {
     const p = await Product.findOne({ slug: String(req.params.slug || '').toLowerCase(), active: true }).select('_id');
-    const empty = { items: [], summary: { avg: 0, total: 0, dist: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 } } };
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const limit = 10;
+    const empty = { items: [], summary: { avg: 0, total: 0, dist: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 } }, pagination: { page, pages: 0, total: 0, limit } };
     if (!p) return res.json(empty);
 
     const sort = req.query.sort === 'helpful' ? { helpfulCount: -1, createdAt: -1 } : { createdAt: -1 };
-    const [docs, hist] = await Promise.all([
-      Review.find({ product: p._id, approved: true }).sort(sort).limit(50),
+    const filter = { product: p._id, approved: true };
+    const [docs, hist, total] = await Promise.all([
+      Review.find(filter).sort(sort).skip((page - 1) * limit).limit(limit),
       Review.aggregate([
-        { $match: { product: p._id, approved: true } },
+        { $match: filter },
         { $group: { _id: '$rating', n: { $sum: 1 } } },
       ]),
+      Review.countDocuments(filter),
     ]);
 
     const dist = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
@@ -109,7 +113,11 @@ exports.listByProduct = async (req, res, next) => {
     const summary = { avg: total ? Math.round((weighted / total) * 10) / 10 : 0, total, dist };
 
     const uid = req.user ? String(req.user._id || req.user.id) : null;
-    res.json({ items: docs.map((r) => view(r, uid ? r.user && String(r.user) === uid : undefined)), summary });
+    res.json({
+      items: docs.map((r) => view(r, uid ? r.user && String(r.user) === uid : undefined)),
+      summary,
+      pagination: { page, pages: Math.ceil(total / limit), total, limit },
+    });
   } catch (e) { next(e); }
 };
 

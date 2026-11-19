@@ -1,4 +1,3 @@
-/* ArixGear component — mobile nav panel + mobile search */
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useCatalog } from '../store/catalog.jsx';

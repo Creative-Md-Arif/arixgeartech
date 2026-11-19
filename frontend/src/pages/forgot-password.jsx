@@ -1,6 +1,3 @@
-/* ArixGear page — /forgot-password (Phase 6b).
-   Requests a reset link. The backend always answers 200 with generic copy
-   (never leaks which emails exist); in dev the link is mirrored back. */
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { forgotPassword } from '../services/auth.js';
@@ -13,7 +10,7 @@ export default function Page() {
   const { t } = useLang();
   const [email, setEmail] = useState('');
   const [err, setErr] = useState('');
-  const [sent, setSent] = useState(null); /* response {message, delivery, resetUrl?} */
+  const [sent, setSent] = useState(null); /*response {message, delivery, resetUrl?}*/
   const [busy, setBusy] = useState(false);
 
   const submit = (e) => {

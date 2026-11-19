@@ -1,7 +1,3 @@
-/* ArixGear page — /deals (Phase 6d).
-   Offers hub: the live flash campaign (with countdown + product strip) when
-   one is running, the ARIX10 welcome coupon card, combo-bundle pointer, and
-   the discounted-catalog browser below (saleOnly pinned server-side). */
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import CatalogBrowser from '../components/CatalogBrowser.jsx';
@@ -12,7 +8,7 @@ import { useSEO } from '../lib/seo.jsx';
 import { Eyebrow, miniBtn, btnPrimary } from '../components/accountKit.jsx';
 import { api } from '../services/http.js';
 
-/* ticking countdown — same math as /flash-sale */
+/*ticking countdown — same math as /flash-sale*/
 function useCountdown(target) {
   const [txt, setTxt] = useState('');
   useEffect(() => {
@@ -38,11 +34,11 @@ export default function Page() {
     description: 'Live flash campaigns, the ARIX10 welcome code, combo bundles and every discounted product on arixgear.tech — one offers hub.',
   });
   const { t } = useLang();
-  const [flash, setFlash] = useState(null); /* null loading · [] none · items live */
+  const [flash, setFlash] = useState(null);
   const [dead, setDead] = useState(null);
   const countdown = useCountdown(dead);
-  const [campaigns, setCampaigns] = useState(null); /* Phase 8 — unified deals API */
-  const [campaign, setCampaign] = useState(null);   /* selected deal → resolved grid */
+  const [campaigns, setCampaigns] = useState(null);
+  const [campaign, setCampaign] = useState(null);
   const [campaignItems, setCampaignItems] = useState(null);
 
   const loadFlash = useCallback(async () => {
@@ -96,7 +92,7 @@ export default function Page() {
           </p>
         </div>
 
-        {/* Phase 8 — unified campaign rails (11.11 · 12.12 · mega · daily · seasonal · brand · bogo · combo · clearance) */}
+        {/*unified campaign rails (11.11 · 12.12 · mega · daily · seasonal · brand · bogo · combo · clearance)*/}
         {campaigns && campaigns.length > 0 ? (
           <div className="mt-10" id="dealsRails">
             <div className="flex flex-wrap gap-2">
@@ -139,7 +135,6 @@ export default function Page() {
           </div>
         ) : null}
 
-        {/* live flash strip */}
         {flash && flash.length > 0 ? (
           <div className="mt-10 border border-acc/50 bg-acc/[.06] p-5 sm:p-6" id="dealsFlash">
             <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
@@ -159,7 +154,6 @@ export default function Page() {
           </div>
         ) : null}
 
-        {/* coupon + bundle cards */}
         <div className="mt-8 grid gap-[.7rem] md:grid-cols-2" id="dealsCards">
           <div className="border border-line bg-panel p-6">
             <p className="font-cond text-[.78rem] uppercase tracking-[.26em] text-dim">{t('New here?')}</p>
@@ -179,7 +173,6 @@ export default function Page() {
           </div>
         </div>
 
-        {/* discounted catalog */}
         <div className="mt-12">
           <h3 className="mb-6 flex items-center gap-3 font-disp text-[1.35rem] uppercase text-txt">
             <i className="not-italic inline-block h-0.5 w-8 bg-acc" />{t('On sale right now')}

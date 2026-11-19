@@ -1,6 +1,4 @@
-/* ArixGear storefront — Bangla dictionary (Task 48).
-   KEYS = exact English source strings. Missing keys fall back to English.
-   Only UI chrome is translated; product/blog/order data from the API stays English. */
+/* Bangla translations for storefront UI labels. */
 export const BN = {
   /* ---------- header nav + mobile panel ---------- */
   'Shop All': 'সব পণ্য',
@@ -33,10 +31,10 @@ export const BN = {
   'YOUR EMAIL': 'আপনার ইমেইল',
   'Check the email': 'ইমেইলটি দেখুন',
   'That address does not look right.': 'এই ঠিকানাটি সঠিক বলে মনে হচ্ছে না।',
-  'Welcome to the Forge': 'ফোর্জে স্বাগতম',
+  'Welcome to the ArixGear': 'ArixGear স্বাগতম',
   'Not sent': 'পাঠানো যায়নি',
   'Something went wrong — try again.': 'কিছু একটা সমস্যা হয়েছে — আবার চেষ্টা করুন।',
-  /* ---------- newsletter coupon card (Task 49) ---------- */
+  /* ---------- newsletter coupon card ---------- */
   'Your 10% welcome code': 'আপনার ১০% ওয়েলকাম কোড',
   'Copy Code': 'কোড কপি',
   'Copied!': 'কপি হয়েছে!',
@@ -56,11 +54,16 @@ export const BN = {
   'Support': 'সাপোর্ট',
   'Track Order': 'অর্ডার ট্র্যাক করুন',
   'Shipping': 'ডেলিভারি',
+  'Previous': 'আগের পৃষ্ঠা',
+  'Next': 'পরের পৃষ্ঠা',
+  'Page {page} of {pages}': 'পৃষ্ঠা {page} / {pages}',
+  'Description': 'বিবরণ',
+  'Free shipping on orders over': 'অর্ডারের পরিমাণ হলে ফ্রি ডেলিভারি',
   'Returns — 30 Days': 'রিটার্ন — ৩০ দিন',
   'Size Guide': 'সাইজ গাইড',
   'Company': 'কোম্পানি',
   'Member Stories': 'মেম্বারদের গল্প',
-  'About the Forge': 'ফোর্জ সম্পর্কে',
+  'About the ArixGear': 'ArixGear সম্পর্কে',
   'Training Guides': 'ট্রেনিং গাইড',
   'The Journal': 'দ্য জার্নাল',
   'About ArixGear': 'ArixGear সম্পর্কে',
@@ -134,7 +137,7 @@ export const BN = {
   'Removed from wishlist': 'উইশলিস্ট থেকে সরানো হয়েছে',
   'Saved to wishlist': 'উইশলিস্টে সংরক্ষিত',
 
-  /* ---------- Step 4 (4.4) — cart stock clamp toasts ---------- */
+  /* ---------- cart stock clamp toasts ---------- */
   'Out of stock': 'স্টক শেষ',
   'this one just sold out': 'এটি এইমাত্র ফুরিয়ে গেছে',
   'Stock limit reached': 'স্টকের সর্বোচ্চ সীমা',
@@ -183,7 +186,7 @@ export const BN = {
   'Lifters Also Buy': 'লিফটাররা এগুলোও কেনে',
   /* ---------- checkout ---------- */
   'CHECKOUT': 'চেকআউট',
-  /* ---------- guest checkout gate (Task 52) ---------- */
+  /* ---------- guest checkout gate ---------- */
   'Account required': 'অ্যাকাউন্ট প্রয়োজন',
   'Guest checkout is currently off. Log in or create a free account to place your order.': 'গেস্ট চেকআউট এখন বন্ধ আছে। অর্ডার করতে লগ ইন করুন বা ফ্রি অ্যাকাউন্ট খুলুন।',
   'Log In / Create Account': 'লগ ইন / অ্যাকাউন্ট খুলুন',
@@ -239,7 +242,7 @@ export const BN = {
   'API offline': 'API অফলাইন',
   'Order failed': 'অর্ডার ব্যর্থ',
   /* ---------- account / auth ---------- */
-  'Your Forge': 'আপনার ফোর্জ',
+  'Your ArixGear': 'আপনার ArixGear',
   'MY': 'আমার',
   'ACCOUNT': 'অ্যাকাউন্ট',
   'Track Your': 'আপনার',
@@ -271,16 +274,16 @@ export const BN = {
   'Reset Your': 'আপনার',
   'Account email': 'অ্যাকাউন্টের ইমেইল',
   'Check your inbox': 'ইনবক্স দেখুন',
-  'Join the': 'ফোর্জে',
-  'Forge': 'যোগ দিন',
+  'Join the': 'ArixGearে',
+  'ArixGear': 'যোগ দিন',
   'Name': 'নাম',
   'for delivery + order updates': 'ডেলিভারি ও অর্ডার আপডেটের জন্য',
   '6+ characters': '৬+ অক্ষর',
   'Welcome back, {name}': 'স্বাগতম, {name}',
   'The rack missed you.': 'র‍্যাক আপনার জন্য অপেক্ষা করেছে।',
   'Name, valid email and a 6+ character password.': 'নাম, সঠিক ইমেইল এবং ৬+ অক্ষরের পাসওয়ার্ড দিন।',
-  'Account forged': 'অ্যাকাউন্ট তৈরি হয়েছে',
-  'Welcome to the Forge, {name}.': 'ফোর্জে স্বাগতম, {name}।',
+  'Account created': 'অ্যাকাউন্ট তৈরি হয়েছে',
+  'Welcome to the ArixGear, {name}.': 'ArixGear স্বাগতম, {name}।',
   'Logged out': 'লগ আউট হয়েছে',
   'The bar will be here when you are back.': 'ফিরে এলে বারবেল এখানেই থাকবে।',
   'Enter the email address on your account.': 'আপনার অ্যাকাউন্টের ইমেইল ঠিকানা দিন।',
@@ -310,7 +313,7 @@ export const BN = {
   /* ---------- track-order page misc ---------- */
   'Order cancelled': 'অর্ডার বাতিল',
 
-  /* ---------- Task 51 — email OTP verification + phone login ---------- */
+  /* ---------- email OTP verification + phone login ---------- */
   'Email or phone': 'ইমেইল বা ফোন নম্বর',
   'Verify Your': 'আপনার',
   'Verify your email first': 'আগে ইমেইল যাচাই করুন',
@@ -322,7 +325,7 @@ export const BN = {
   'Verify & Enter': 'যাচাই করে ঢুকুন',
   'Resend code': 'কোড আবার পাঠান',
   'Resend code in {s}s': '{s} সেকেন্ড পরে আবার পাঠানো যাবে',
-  /* ---------- Task 60 — segmented OTP boxes + guest-off drawer notice ---------- */
+  /* ---------- segmented OTP boxes + guest-off drawer notice ---------- */
   '{n} attempt(s) left': '{n} বার চেষ্টার সুযোগ বাকি',
   'Guest checkout is off': 'গেস্ট চেকআউট বন্ধ আছে',
   'You will need an account to check out — ': 'চেকআউট করতে অ্যাকাউন্ট লাগবে — ',
@@ -343,7 +346,7 @@ export const BN = {
   'Add 1 more to compare': 'আরও ১টি যোগ করুন',
   'Viewed today': 'এদিন দেখেছেন',
   'The full stack': 'পুরো স্ট্যাক',
-  'Welcome to the Forge': 'ফোর্জে স্বাগতম',
+  'Welcome to the ArixGear': 'ArixGear স্বাগতম',
   'Newsletter subscribed — drops and coupons land in your inbox first!': 'নিউজলেটার সাবস্ক্রিপশন সফল — ড্রপ আর কুপন আগে জানবেন!',
   'Before you go': 'যাওয়ার আগে',
   "Don't Miss the": 'মিস করবেন না',
@@ -410,7 +413,7 @@ export const BN = {
   '{n} order(s) you placed as a guest are now in your account.': 'আপনি গেস্ট হিসেবে যে {n}টি অর্ডার করেছিলেন সেগুলো এখন আপনার অ্যাকাউন্টে।',
   'Cart saved — {n} item(s)': 'কার্ট সংরক্ষিত — {n}টি পণ্য',
 
-  /* ---------- Phase 6a — category / brand / search / cart / wishlist ---------- */
+  /* ---------- category / brand / search / cart / wishlist ---------- */
   'CATEGORY': 'ক্যাটাগরি',
   'OFFICIAL BRAND STORE': 'অফিসিয়াল ব্র্যান্ড স্টোর',
   'FIND YOUR GEAR': 'আপনার গিয়ার খুঁজুন',
@@ -446,7 +449,7 @@ export const BN = {
   'Nothing From This Brand Yet': 'এই ব্র্যান্ডের এখনো কিছু নেই',
   'Fresh drops land weekly — or browse another brand from the directory.': 'নতুন পণ্য প্রতি সপ্তাহে আসে — বা ডিরেক্টরি থেকে অন্য ব্র্যান্ড দেখুন।',
 
-  /* ---------- Phase 6b — routed account pages ---------- */
+  /* ---------- routed account pages ---------- */
   'MY ACCOUNT': 'আমার অ্যাকাউন্ট',
   'Members Only': 'শুধু সদস্যদের জন্য',
   'Log in to see': 'দেখতে লগ ইন করুন —',
@@ -644,7 +647,7 @@ export const BN = {
   'Message': 'মেসেজ',
   'Cancel': 'বাতিল',
 
-  /* ---------- Phase 6c — support pages ---------- */
+  /* ---------- support pages ---------- */
   'SUPPORT DESK': 'সাপোর্ট ডেস্ক',
   'Frequently Asked Questions': 'সাধারণ জিজ্ঞাসা',
   'The numbers here — fees, windows, timelines — are the same ones the backend enforces. Nothing aspirational.': 'এখানকার সংখ্যা — ফি, সময়সীমা, টাইমলাইন — ব্যাকএন্ড যা প্রয়োগ করে, ঠিক তাই। কোনো স্বপ্ন-তালিকা নয়।',
@@ -686,7 +689,7 @@ export const BN = {
   'Terms of Service': 'শর্তাবলি',
   'FAQ': 'FAQ',
 
-  /* ---------- Phase 6d — business / discovery pages ---------- */
+  /* ---------- business / discovery pages ---------- */
   'OFFERS & DEALS': 'অফার ও ডিল',
   'Deals': 'ডিল',
   'Desk': 'ডেস্ক',
@@ -779,7 +782,7 @@ export const BN = {
   'Expired': 'মেয়াদোত্তীর্ণ',
   'Active': 'সক্রিয়',
 
-  /* ---------- footer (Phase 6d refresh) ---------- */
+  /* ---------- footer ---------- */
   'Genuine tech, priced in BDT, proven by the ledger. Laptops, desktops, monitors, components and accessories — warranty-backed and delivered nationwide.': 'জেনুইন টেক, BDT-তে দাম, লেজারে প্রমাণিত। ল্যাপটপ, ডেস্কটপ, মনিটর, কম্পোনেন্ট ও অ্যাক্সেসরিজ — ওয়ারেন্টি-সমর্থিত আর সারাদেশে ডেলিভারি।',
   'Laptops': 'ল্যাপটপ',
   'Desktops': 'ডেস্কটপ',
@@ -787,11 +790,11 @@ export const BN = {
   'Components': 'কম্পোনেন্টস',
   'Contact': 'যোগাযোগ',
 
-  /* ---------- Step 4 (4.5) — remaining i18n sweep (52 keys) ---------- */
+  /* ---------- remaining i18n sweep (52 keys) ---------- */
   'Warranty Policy': 'ওয়ারেন্টি নীতি',
   'Returns Policy': 'রিটার্ন নীতি',
   'Shop all {c}': 'সব {c} দেখুন',
-  'We are upgrading the forge. The shop reopens shortly — your cart and wishlist are safe, and order tracking stays live.': 'আমরা ফোর্জ আপগ্রেড করছি। খুব শীঘ্রই দোকান আবার খুলবে — আপনার কার্ট ও উইশলিস্ট নিরাপদ আছে, এবং অর্ডার ট্র্যাকিং চালু থাকবে।',
+  'We are upgrading the ArixGear. The shop reopens shortly — your cart and wishlist are safe, and order tracking stays live.': 'আমরা ArixGear আপগ্রেড করছি। খুব শীঘ্রই দোকান আবার খুলবে — আপনার কার্ট ও উইশলিস্ট নিরাপদ আছে, এবং অর্ডার ট্র্যাকিং চালু থাকবে।',
   'Try again': 'আবার চেষ্টা করুন',
   'Track an existing order': 'বিদ্যমান অর্ডার ট্র্যাক করুন',
   'Try "tee", "belt", "whey"…': '"টি", "বেল্ট", "হুই"… লিখে দেখুন',

@@ -1,4 +1,4 @@
-/* ArixGear — account kit (Phase 6b).
+/* ArixGear — account kit (b).
    Shared primitives for the 11 routed account pages so every screen keeps the
    same Voltage voice: eyebrow → display title → panels, notch buttons, honest
    empty states, and a login gate that deep-links back after /login?next=… */

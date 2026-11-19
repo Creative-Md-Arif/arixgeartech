@@ -1,13 +1,3 @@
-/* ArixGear page — index (home): the 13-section conversion-spec stack (Phase 3),
-   100% admin-driven via /api/home-sections:
-     #1 utility bar + #2 primary navbar + #3 secondary category navbar (header chrome)
-     #4 hero + 2 side promos (HeroPromos column)
-     #5 ticker · #6 quick services · #7 category grid · #8 flash deals + countdown
-     #9 new arrivals · #10 best sellers · #11 combo bundles
-     #12 community stories (athletes + member stories) · #13 footer + newsletter
-   Known keys keep bespoke components placed by the admin's order number (legacy
-   fixed order as fallback); any NEW admin-created section renders through
-   sections/Generic.jsx at its order position. */
 import { Fragment, useEffect, useState } from 'react';
 import Hero from './sections/Hero.jsx';
 import HeroPromos from './sections/HeroPromos.jsx';
@@ -28,9 +18,7 @@ import { useCatalog } from '../store/catalog.jsx';
 import { useSEO } from '../lib/seo.jsx';
 import { getActiveTheme } from '../lib/theme.js';
 
-/* bespoke components — key → component + the order it keeps when the admin row
-   is absent (the Phase 3 visual order). goal-panels + membership teaser were
-   removed with the fitness vertical (Phase 2). */
+/*bespoke components — key → component + the order it keeps when the admin row is absent (the visual order). goal-panels + membership teaser were removed with the fitness vertical.*/
 const KNOWN = [
   { key: 'hero-slider', C: Hero, at: 1 },
   { key: 'ticker', C: Ticker, at: 2 },
@@ -104,7 +92,7 @@ export default function Page() {
   }
   const hasSidePromos = Array.isArray(sideBanners) && sideBanners.some((banner) => banner && (banner.image || banner.title));
 
-  /* #4 of 13 — the hero zone: slider + side promos (column on xl, grid under on small) */
+  /*#4 of 13 — the hero zone: slider + side promos (column on xl, grid under on small)*/
   return (
     <>{nodes.filter((node) => visualTheme.homepage?.sections?.[node.k] !== false).map((x) => (
       x.k === 'hero-slider'

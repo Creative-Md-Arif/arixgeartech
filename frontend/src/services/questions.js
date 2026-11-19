@@ -1,12 +1,9 @@
-/* ArixGear services — product questions (PDP: list answered + ask + helpful votes)
-   Task 30: auth is INCLUDED on purpose (same as reviews) — logged-in callers get
-   `mine` flags on their questions and can vote "helpful". */
 import { api } from './http.js';
 
 /* GET /api/products/:slug/questions — answered only (+ ?sort=helpful)
    opts: { sort: 'helpful' | 'new' } */
 export const listByProduct = (slug, opts = {}, signal) => {
-  const qs = opts.sort === 'helpful' ? '?sort=helpful' : '';
+  const qs = `?sort=${opts.sort === 'helpful' ? 'helpful' : 'new'}&page=${opts.page || 1}`;
   return api(`/products/${encodeURIComponent(slug)}/questions${qs}`, { signal });
 };
 

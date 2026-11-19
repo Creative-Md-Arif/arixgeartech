@@ -1,7 +1,4 @@
-/* Task 37 — browser push notification: fires a native OS notification while
-   the tab is HIDDEN (document.hidden). Clicking it focuses the tab and opens
-   the link. Permission is requested from the bell dropdown pill. */
-
+/* Send native notifications while the storefront tab is hidden. */
 export const pushSupported = () => typeof window !== 'undefined' && 'Notification' in window;
 
 export const pushState = () => (pushSupported() ? Notification.permission : 'unsupported');

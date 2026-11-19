@@ -1,7 +1,3 @@
-/* ArixGear page — /product-registration (Phase 6d).
-   Warranty registration desk: order number + checkout phone + optional serial
-   → ARG-W record with the expiry pre-calculated server-side from the product's
-   printed warranty months. Includes the lookup panel (reg number + phone). */
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { registerWarranty, lookupWarranty } from '../services/service.js';
@@ -16,16 +12,14 @@ export default function Page() {
   });
   const { t } = useLang();
 
-  /* register form */
   const [form, setForm] = useState({ orderNumber: '', phone: '', serial: '', email: '', notes: '' });
   const [regErr, setRegErr] = useState('');
-  const [regOk, setRegOk] = useState(null); /* registration publicView on success */
+  const [regOk, setRegOk] = useState(null);
   const [regBusy, setRegBusy] = useState(false);
 
-  /* lookup panel */
   const [lk, setLk] = useState({ regNumber: '', phone: '' });
   const [lkErr, setLkErr] = useState('');
-  const [lkRes, setLkRes] = useState(null); /* registration view */
+  const [lkRes, setLkRes] = useState(null);
   const [lkBusy, setLkBusy] = useState(false);
 
   const submit = (e) => {
@@ -94,7 +88,7 @@ export default function Page() {
         </p>
 
         <div className="mt-10 grid gap-6 lg:grid-cols-[1.15fr_.85fr]">
-          {/* register */}
+
           <form id="regForm" noValidate onSubmit={submit} className="h-fit border border-line bg-panel p-6 sm:p-7">
             <p className="mb-5 font-cond text-[.82rem] font-semibold uppercase tracking-[.3em] text-acc">{t('Register a product')}</p>
             <ErrStrip>{regErr}</ErrStrip>
@@ -140,7 +134,6 @@ export default function Page() {
             ) : <RegCard r={regOk} />}
           </form>
 
-          {/* lookup + help */}
           <div className="space-y-6">
             <form id="lkForm" noValidate onSubmit={doLookup} className="h-fit border border-line bg-panel p-6">
               <p className="mb-5 font-cond text-[.82rem] font-semibold uppercase tracking-[.3em] text-acc">{t('Look up a registration')}</p>

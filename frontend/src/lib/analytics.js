@@ -1,13 +1,8 @@
-/* ArixGear core — Google Analytics 4 (admin-driven; mirrors the Meta Pixel pattern).
-   Config: GET /api/seo → site.analytics (Admin → SEO → Site & Schema). When enabled
-   with a valid Measurement ID (G-XXXX…), gtag.js is injected at runtime with
-   send_page_view disabled — the SPA fires page_view itself on every route change
-   (pixel.js forwards PageView here). window.arixGA mirrors the boot state and
-   window.__gaEvents mirrors every event for QA, exactly like __fbEvents.     */
+/* Admin-configured GA4 integration; SPA page views follow router navigation. */
 import { loadSEO } from './seo.jsx';
 
 window.arixGA = { enabled: false, ga4Id: '' };
-window.forgedGA = window.arixGA; /* legacy QA alias — removed in Phase 8 */
+window.arixgearGA = window.arixGA;
 window.__gaEvents = [];
 
 const QUEUE = []; /* events fired before the config landed — flushed after boot */
@@ -48,8 +43,6 @@ export function gaPageView(path, title) {
     page_title: title || document.title,
   });
 }
-
-/* initAnalytics — call once per page load (Chrome in the layout). Idempotent. */
 export async function initAnalytics() {
   if (initAnalytics._booted) return;
   initAnalytics._booted = true;
@@ -67,7 +60,7 @@ export async function initAnalytics() {
     window.gtag('js', new Date());
     window.gtag('config', id, { send_page_view: false }); /* SPA fires page_view manually */
     window.arixGA = { enabled: true, ga4Id: id };
-    window.forgedGA = window.arixGA; /* legacy QA alias — removed in Phase 8 */
+    window.arixgearGA = window.arixGA;
     /* replay anything that fired while the config was still loading */
     while (QUEUE.length) {
       const [n, p] = QUEUE.shift();

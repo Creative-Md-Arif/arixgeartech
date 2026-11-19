@@ -1,8 +1,3 @@
-/* ArixGear page — /flash-sale (Task 57).
-   Live scheduled flash sales from GET /api/products/flash (server-computed
-   windows — starts/ends by itself). Big countdown to the soonest deadline,
-   auto-poll every 30s so sales appear/disappear without a reload, and the
-   shared ProductCard grid (flash chips + swapped prices ride along). */
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { adaptOne } from '../store/catalog.jsx';
@@ -26,7 +21,7 @@ const GridSkeleton = () => (
   </div>
 );
 
-/* ticking countdown text — re-renders once per second */
+/*ticking countdown text — re-renders once per second*/
 function useCountdown(target) {
   const [txt, setTxt] = useState('');
   useEffect(() => {
@@ -49,8 +44,8 @@ function useCountdown(target) {
 export default function FlashSalePage() {
   useSEO('flash-sale', { title: 'Flash Sale — ArixGear', robots: 'index,follow' });
   const { t } = useLang();
-  const [items, setItems] = useState(null); /* null = loading */
-  const [dead, setDead] = useState(null);   /* soonest endsAt among live items */
+  const [items, setItems] = useState(null);
+  const [dead, setDead] = useState(null);
   const countdown = useCountdown(dead);
 
   const load = useCallback(async () => {
@@ -64,7 +59,7 @@ export default function FlashSalePage() {
 
   useEffect(() => {
     load();
-    const t = setInterval(load, 30000); // sales start/end by themselves — poll keeps the grid honest
+    const t = setInterval(load, 30000);  // sales start/end by themselves — poll keeps the grid honest
     return () => clearInterval(t);
   }, [load]);
 

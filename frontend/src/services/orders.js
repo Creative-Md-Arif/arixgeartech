@@ -1,12 +1,10 @@
-/* ArixGear services — orders (guest checkout, public tracking, account history,
-   Task 28: server preview, idempotent place, self-cancel, PDF invoice, RMA) */
 import { api, API_BASE } from './http.js';
 
 const sessionToken = () => {
   try { return (JSON.parse(localStorage.getItem('forged_session') || 'null') || {}).token || null; } catch (e) { return null; }
 };
 
-/* Task 40 — start an SSLCOMMERZ session for a placed order.
+/* — start an SSLCOMMERZ session for a placed order.
    The backend returns `redirect`: an absolute GatewayPageURL (real mode) or a
    relative /payment/sandbox URL (simulated mode). Relative targets are
    absolutized against the API origin so it works cross-origin in dev too. */
@@ -28,7 +26,7 @@ export const createOrder = ({ payload, screenshot }, signal) => {
 /* POST /api/orders/preview — server-side totals (price/coupon/division shipping)
    WITHOUT creating an order; the checkout totals box + coupon field use this so
    the customer always sees the real numbers before submitting.
-   Task 56-a — token IS attached when present: logged-in customers get the
+   — token IS attached when present: logged-in customers get the
    loyalty redemption block in the same response. */
 export const previewOrder = (body, signal) =>
   api('/orders/preview', { method: 'POST', body, signal });
@@ -79,7 +77,7 @@ export async function downloadInvoice(orderNo, { phone } = {}) {
 /* GET /api/orders/my — JWT account order history */
 export const myOrders = (signal) => api('/orders/my', { signal });
 
-/* GET /api/orders/my/returns — JWT RMA list across the account's orders (Phase 6b) */
+/* GET /api/orders/my/returns — JWT RMA list across the account's orders () */
 export const myReturns = (signal) => api('/orders/my/returns', { signal });
 
 /* POST /api/coupons/validate — { code, subtotal, items?:[{slug,lineTotal}] }

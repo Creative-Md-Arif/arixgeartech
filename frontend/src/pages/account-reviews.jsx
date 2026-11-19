@@ -1,7 +1,3 @@
-/* ArixGear page — /account/reviews (Phase 6b).
-   Every review this account wrote, any approval state, with the product card.
-   Pending rows carry an honest "awaiting moderation" chip; owner edit/delete
-   still happens on the PDP (single source of review tooling). */
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { listMine } from '../services/reviews.js';
@@ -15,7 +11,7 @@ const imgFallback = (e) => { e.currentTarget.style.display = 'none'; };
 export default function Page() {
   useSEO('account-reviews', { title: 'My Reviews — arixgear.tech', robots: 'noindex,follow' });
   const { t } = useLang();
-  const [items, setItems] = useState(null); /* null loading · [] none */
+  const [items, setItems] = useState(null);
 
   useEffect(() => {
     let dead = false;

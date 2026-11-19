@@ -1,11 +1,7 @@
-/* ArixGear page — Track Order (Task 39): public order tracking.
-   Order number + checkout phone (any ≥6-digit suffix) → status timeline,
-   items, totals, courier info. Backed by GET /api/orders/track/:orderNumber
-   (phone-proof rate limited server-side). Also self-cancel for live orders. */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { trackOrder, cancelOrder } from '../services/orders.js';
-import { joinOrder, leaveOrder, onRealtime } from '../lib/realtime.js'; /* Phase 7 — live order room */
+import { joinOrder, leaveOrder, onRealtime } from '../lib/realtime.js';
 import { adaptOrder, money, STATUS_LABELS } from '../lib/format.js';
 import { useUI } from '../store/ui.jsx';
 import { useSEO } from '../lib/seo.jsx';
@@ -20,7 +16,7 @@ const labelCls = 'mb-1.5 block font-cond font-semibold text-[.78rem] uppercase t
 const inputCls = 'w-full border border-line2 bg-bg2 px-4 py-3 text-[.92rem] text-txt outline-none transition-colors placeholder:text-dim focus:border-acc';
 const btnPrimary = 'inline-flex items-center justify-center gap-2.5 bg-acc px-8 py-4 font-head font-extrabold text-[.8rem] uppercase tracking-[.2em] text-black transition-all duration-300 clip-notch hover:bg-acc2 hover:-translate-y-0.5 disabled:opacity-40 disabled:hover:translate-y-0';
 
-/* main flow for the timeline (cancel/reject render as terminal states) */
+/*main flow for the timeline (cancel/reject render as terminal states)*/
 const FLOW = ['verifying', 'processing', 'packed', 'shipped', 'delivered'];
 const FLOW_ICON = { verifying: '◔', processing: '⚙', packed: '▣', shipped: '➤', delivered: '✓' };
 
@@ -54,14 +50,10 @@ export default function Page() {
   const [params] = useSearchParams();
   const [no, setNo] = useState(params.get('order') || '');
   const [phone, setPhone] = useState('');
-  const [order, setOrder] = useState(null); // adapted order
-  const [raw, setRaw] = useState(null); // server payload (canCancel etc.)
+  const [order, setOrder] = useState(null);
+  const [raw, setRaw] = useState(null);  // server payload (canCancel etc.)
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-
-  /* deep link ?order=ARG-… auto-searches once the visitor types the phone */
-  const autoNo = params.get('order');
-  useEffect(() => { if (order === null && autoNo && phone.replace(/\D/g, '').length >= 6 && !busy) { /* handled by submit */ } }, [autoNo, phone, order, busy]);
 
   const submit = async (e) => {
     if (e) e.preventDefault();
@@ -94,9 +86,7 @@ export default function Page() {
   const cancelled = raw && (raw.status === 'cancelled' || raw.status === 'payment-rejected');
   const eta = useMemo(() => (raw ? new Date(raw.eta || Date.now()) : null), [raw]);
 
-  /* Phase 7 — live order room (Socket.IO): join `order:<NUM>` after a successful
-     track (phone-proof rule enforced by the gateway) and refresh the timeline
-     the moment the admin fans an order:updated — zero polling. */
+  /*live order room (Socket.IO): join `order:<NUM>` after a successful track (phone-proof rule enforced by the gateway) and refresh the timeline the moment the admin fans an order:updated — zero polling.*/
   const liveRef = useRef({ no: '', phone: '' });
   useEffect(() => { liveRef.current = { no: no.trim(), phone: phone.trim() }; }, [no, phone]);
   useEffect(() => {
@@ -143,7 +133,7 @@ export default function Page() {
 
       {order && raw ? (
         <div className="mt-8 grid gap-5 lg:grid-cols-[1.35fr_1fr]" id="trackResult">
-          {/* status card */}
+
           <section className="rounded-xl border border-line bg-panel p-6" id="trackStatusCard">
             <div className="mb-6 flex flex-wrap items-center gap-3">
               <div>
@@ -167,7 +157,6 @@ export default function Page() {
               <p className="mt-5 text-center text-[.8rem] text-muted">Estimated delivery: <b className="text-txt">{eta.toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short' })}</b> (3-day standard, Dhaka metro often sooner)</p>
             ) : null}
 
-            {/* history */}
             {raw.statusHistory && raw.statusHistory.length ? (
               <div className="mt-6 border-t border-line pt-5">
                 <div className="mb-2.5 font-cond text-[.72rem] font-bold uppercase tracking-[.2em] text-silver2">History</div>
@@ -189,7 +178,6 @@ export default function Page() {
             ) : null}
           </section>
 
-          {/* items + totals + shipping */}
           <div className="space-y-5">
             <section className="rounded-xl border border-line bg-panel p-6" id="trackItems">
               <div className="mb-3.5 font-cond text-[.72rem] font-bold uppercase tracking-[.2em] text-silver2">Items ({order.items.length})</div>
