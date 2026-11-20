@@ -1,32 +1,12 @@
-/*flash deals + countdown. Reads /api/products/flash (server-swapped flash prices, soonest-ending first). Big countdown to the soonest endsAt; grid of up to 4 deal cards. No live deals → renders a quiet promo strip to /flash-sale when the admin row exists, else nothing (honest empty state).*/
-import { useEffect, useMemo, useRef, useState } from 'react';
+/*flash deals. Reads /api/products/flash (server-swapped flash prices, soonest-ending first). Each product card owns its flash countdown.*/
+import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useContent } from '../../store/content.jsx';
 import { adaptOne } from '../../store/catalog.jsx';
 import { flashList } from '../../services/products.js';
-import { money } from '../../lib/format.js';
 import { pick, tr, useLang } from '../../lib/i18n.jsx';
 import { SectionHead, OutlineTitle } from './Head.jsx';
 import ProductCard from '../../components/ProductCard.jsx';
-
-function useCountdown(target) {
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    if (!target) return undefined;
-    const t = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(t);
-  }, [target]);
-  const ms = target ? Math.max(0, +new Date(target) - now) : 0;
-  const s = Math.floor(ms / 1000);
-  return { ended: target ? ms <= 0 : false, h: Math.floor(s / 3600), m: Math.floor((s % 3600) / 60), s: s % 60 };
-}
-
-const Cell = ({ v, label }) => (
-  <span className="fd-cell flex min-w-[64px] flex-col items-center border border-line bg-bg px-3 py-2.5" data-count={label}>
-    <b className="font-disp text-2xl leading-none text-acc">{String(v).padStart(2, '0')}</b>
-    <span className="mt-1.5 font-cond text-[.62rem] font-semibold uppercase tracking-[.24em] text-dim">{label}</span>
-  </span>
-);
 
 export default function FlashDeals() {
   useLang();
@@ -48,14 +28,6 @@ export default function FlashDeals() {
     }).catch(() => { if (!dead) setItems([]); });
     return () => { dead = true; };
   }, [visible, sec]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  /*countdown target: soonest flash end*/
-  const target = useMemo(() => {
-    if (!items || !items.length) return null;
-    const ends = items.map((p) => p.flash && p.flash.endsAt).filter(Boolean).map((x) => +new Date(x));
-    return ends.length ? Math.min(...ends) : null;
-  }, [items]);
-  const cd = useCountdown(target);
 
   const flashStep = () => {
     const el = trackRef.current;
@@ -102,15 +74,6 @@ export default function FlashDeals() {
           title={sec.title ? <OutlineTitle text={pick(sec, 'title')} /> : null}
           right={
             <div className="flex flex-wrap items-center justify-end gap-2">
-              {target ? (
-                <div className="flex items-center gap-1.5 sm:gap-2" id="flashCountdown" data-testid="flashCountdown">
-                  <Cell v={cd.h} label={tr('HRS')} />
-                  <b className="font-disp text-lg text-dim sm:text-xl">:</b>
-                  <Cell v={cd.m} label={tr('MIN')} />
-                  <b className="font-disp text-lg text-dim sm:text-xl">:</b>
-                  <Cell v={cd.s} label={tr('SEC')} />
-                </div>
-              ) : null}
               <div className="flex gap-1.5" aria-label="Flash deals carousel controls">
                 <button type="button" className="car-btn group grid h-[46px] w-[46px] place-items-center border border-line2 bg-panel transition hover:border-acc" onClick={() => flashJump(flashIndex() - 1)} aria-label="Previous flash deals"><svg viewBox="0 0 24 24" className="h-[17px] w-[17px] fill-none stroke-silver stroke-2 transition group-hover:stroke-acc"><path d="M19 12H5M11 6l-6 6 6 6" /></svg></button>
                 <button type="button" className="car-btn group grid h-[46px] w-[46px] place-items-center border border-line2 bg-panel transition hover:border-acc" onClick={flashNext} aria-label="Next flash deals"><svg viewBox="0 0 24 24" className="h-[17px] w-[17px] fill-none stroke-silver stroke-2 transition group-hover:stroke-acc"><path d="M5 12h14M13 6l6 6-6 6" /></svg></button>

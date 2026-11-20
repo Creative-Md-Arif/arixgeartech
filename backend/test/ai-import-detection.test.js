@@ -2,7 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const importer = require('../src/services/ai/importer');
-const { extract, guessBrand, guessCategory, resolveImportDetection, templateRewrite, validateCatalogGuess } = importer;
+const { extract, extractPrice, guessBrand, guessCategory, resolveImportDetection, templateRewrite, validateCatalogGuess } = importer;
 const provider = require('../src/services/ai/provider');
 const Category = require('../src/models/Category');
 const Brand = require('../src/models/Brand');
@@ -25,6 +25,20 @@ test('category detection chooses the deepest matching catalog category', () => {
 
   assert.equal(result.slug, 'gaming-laptops');
   assert.ok(result.confidence > 0);
+});
+
+test('price extraction ignores EMI and prefers the current selling price', () => {
+  assert.equal(extractPrice('Special Price Tk 4,650 Regular Price Tk 5,050 EMI Tk 421/month'), 4650);
+});
+
+test('HTML extraction keeps product id and multiline feature rows', () => {
+  const item = extract(
+    '<title>JBL GO 4</title><div>Product Id: 10.731.31.331</div>' +
+    '<table><tr><td>Others</td><td>USB Type-C<br>Bluetooth 5.3<br>IP67</td></tr></table>',
+    'https://example.com/product',
+  );
+  assert.equal(item.sku, '10.731.31.331');
+  assert.deepEqual(item.features, ['USB Type-C', 'Bluetooth 5.3', 'IP67']);
 });
 
 test('category detection never invents a slug when the catalog has no match', () => {

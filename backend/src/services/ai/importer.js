@@ -25,6 +25,7 @@
 
 const net = require('net');
 const dns = require('dns').promises;
+const fs = require('fs');
 const { randomUUID, createHash } = require('crypto');
 const AiImport = require('../../models/AiImport');
 const AiSetting = require('../../models/AiSetting');
@@ -34,6 +35,21 @@ const Category = require('../../models/Category');
 const Brand = require('../../models/Brand');
 const provider = require('./provider');
 const { slugify, skuFor } = require('../../controllers/admin/_shared');
+
+/* Optional JS renderer. The package is lightweight; the deployment supplies
+   Chrome/Chromium through AI_IMPORT_BROWSER_PATH (or a system installation).
+   If no browser exists, the importer remains fully functional with raw HTML. */
+let chromium = null;
+try { ({ chromium } = require('playwright-core')); } catch (_e) { /* optional */ }
+let renderBrowser = null;
+const browserCandidates = process.platform === 'win32'
+  ? ['C:/Program Files/Google/Chrome/Application/chrome.exe', 'C:/Program Files/Microsoft/Edge/Application/msedge.exe']
+  : ['/usr/bin/google-chrome', '/usr/bin/chromium', '/usr/bin/chromium-browser'];
+function browserPath() {
+  const configured = String(process.env.AI_IMPORT_BROWSER_PATH || '').trim();
+  if (configured && fs.existsSync(configured)) return configured;
+  return browserCandidates.find((p) => fs.existsSync(p)) || '';
+}
 
 /* ---------- 1. SSRF guard ---------- */
 function normalizeUrl(raw) {
@@ -103,6 +119,37 @@ async function assertFetchable(urlStr) {
    re-running the full guard (DNS included) on every hop, and the body is
    streamed with a hard 4MB cap instead of buffering blindly. */
 const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
+async function renderDoc(url) {
+  if (!chromium || process.env.AI_IMPORT_RENDER_JS === 'false') return null;
+  const executablePath = browserPath();
+  if (!executablePath) return null;
+  try {
+    if (!renderBrowser || !renderBrowser.isConnected()) {
+      renderBrowser = await chromium.launch({ executablePath, headless: true });
+    }
+    const page = await renderBrowser.newPage({ serviceWorkers: 'block' });
+    /* A rendered page can issue its own requests, so apply the SSRF guard to
+       every browser request too. Non-HTTP assets are safe to keep local. */
+    await page.route('**/*', async (route) => {
+      const requestUrl = route.request().url();
+      if (/^(data|blob|about):/i.test(requestUrl)) return route.continue();
+      try { await assertFetchable(requestUrl); return route.continue(); }
+      catch (_e) { return route.abort(); }
+    });
+    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 25000 });
+    await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
+    const html = await page.content();
+    const finalUrl = page.url();
+    await page.close();
+    await assertFetchable(finalUrl);
+    return { html, finalUrl };
+  } catch (e) {
+    console.warn('[ai-import] JS rendering unavailable, using raw HTML:', e.message);
+    if (renderBrowser && !renderBrowser.isConnected()) renderBrowser = null;
+    return null;
+  }
+}
+
 async function fetchDoc(urlStr) {
   let url = urlStr;
   for (let hop = 0; hop < 4; hop++) {
@@ -131,7 +178,11 @@ async function fetchDoc(urlStr) {
         if (size > 4 * 1024 * 1024) throw new Error('Page too large (>4MB)');
         chunks.push(Buffer.from(chunk));
       }
-      return { html: Buffer.concat(chunks).toString('utf-8'), finalUrl: res.url || url };
+      const raw = { html: Buffer.concat(chunks).toString('utf-8'), finalUrl: res.url || url };
+      const hasProductMarkup = /application\/ld\+json|<h1\b|<table\b|product:(?:price|brand|sku)/i.test(raw.html);
+      const shouldRender = process.env.AI_IMPORT_RENDER_JS === 'true' || !hasProductMarkup;
+      const rendered = shouldRender ? await renderDoc(raw.finalUrl) : null;
+      return rendered || raw;
     } finally { clearTimeout(t); }
   }
   throw new Error('Too many redirects');
@@ -184,20 +235,31 @@ function decodeEntities(s) {
 function stripTags(s) {
   return decodeEntities(String(s || '')
     .replace(/<(script|style|noscript)\b[^>]*>[\s\S]*?<\/\1>/gi, ' ')
+    .replace(/<(?:br|\/p|\/li|\/tr|\/div|\/h[1-6])\b[^>]*>/gi, '\n')
     .replace(/<[^>]*>/g, ' ')
-    .replace(/\s+/g, ' ')
+    .replace(/[ \t\f\r]+/g, ' ')
+    .replace(/\n\s*/g, '\n')
     .trim());
 }
 
 function extractPrice(text) {
   const t = String(text || '');
   const re = /(?:৳|tk\.?|bdt)\s*([\d,]+(?:\.\d+)?)/gi;
-  const nums = [];
+  const candidates = [];
   let m;
-  while ((m = re.exec(t))) nums.push(parseFloat(m[1].replace(/,/g, '')));
-  const valid = nums.filter((n) => n >= 50 && n <= 100000000);
-  if (!valid.length) return null;
-  return Math.round(Math.min(...valid)); // lowest price found = actual price (highest is usually the crossed-out one)
+  while ((m = re.exec(t))) {
+    const value = parseFloat(m[1].replace(/,/g, ''));
+    if (!(value >= 50 && value <= 100000000)) continue;
+    const before = t.slice(Math.max(0, m.index - 80), m.index).toLowerCase();
+    const context = t.slice(Math.max(0, m.index - 100), Math.min(t.length, re.lastIndex + 30)).toLowerCase();
+    if (/(?:emi|installment|monthly|per\s+month|month(?:ly)?|down\s+payment)\s*(?:price)?\s*$/i.test(before)) continue;
+    const isOldPrice = /\b(?:regular|original|mrp|list|old|was)\s+price\b/i.test(context);
+    const isCurrentPrice = /\b(?:special|sale|selling|current|offer|our)\s+price\b/i.test(context);
+    candidates.push({ value, score: isCurrentPrice ? 3 : isOldPrice ? 1 : 2 });
+  }
+  if (!candidates.length) return null;
+  const bestScore = Math.max(...candidates.map((x) => x.score));
+  return Math.round(Math.min(...candidates.filter((x) => x.score === bestScore).map((x) => x.value)));
 }
 
 function extractComparePrice(html, ld, currentPrice) {
@@ -301,7 +363,7 @@ function extractSpecs(html, ld = {}, products = []) {
   /* Key/value rows used by WooCommerce, Magento, and common vendor tables. */
   const trRe = /<tr\b[^>]*>([\s\S]*?)<\/tr>/gi;
   let m;
-  while ((m = trRe.exec(source)) && specs.length < 60) {
+  while ((m = trRe.exec(source)) && specs.length < 100) {
     const cells = [...m[1].matchAll(/<(t[dh])\b([^>]*)>([\s\S]*?)<\/t[dh]>/gi)];
     for (const cell of cells) {
       const label = (cell[2].match(/\bdata-(?:label|title|spec-name)=["']([^"']+)["']/i) || [])[1];
@@ -312,13 +374,13 @@ function extractSpecs(html, ld = {}, products = []) {
 
   /* Definition lists often wrap labels and values in extra markup. */
   const dlRe = /<dt\b[^>]*>([\s\S]*?)<\/dt>[\s\S]{0,300}?<dd\b[^>]*>([\s\S]*?)<\/dd>/gi;
-  while ((m = dlRe.exec(source)) && specs.length < 60) add(m[1], m[2]);
+  while ((m = dlRe.exec(source)) && specs.length < 100) add(m[1], m[2]);
 
   /* Responsive product pages encode each attribute as a labelled cell. */
   const attrRe = /<([a-z][\w:-]*)\b([^>]*?)>/gi;
   const lowerSource = source.toLowerCase();
   let tag;
-  while ((tag = attrRe.exec(source)) && specs.length < 60) {
+  while ((tag = attrRe.exec(source)) && specs.length < 100) {
     const attrs = tag[2];
     const dataKey = (attrs.match(/\bdata-(?:spec-name|attribute|label)=["']([^"']+)["']/i) || [])[1];
     const dataValue = (attrs.match(/\bdata-(?:spec-value|value)=["']([^"']+)["']/i) || [])[1];
@@ -349,11 +411,11 @@ function extractSpecs(html, ld = {}, products = []) {
   }
 
   const listRe = /<(ul|ol)\b([^>]*)>([\s\S]*?)<\/\1>/gi;
-  while ((m = listRe.exec(source)) && specs.length < 60) {
+  while ((m = listRe.exec(source)) && specs.length < 100) {
     if (!/(?:spec|technical|attribute)/i.test(m[2])) continue;
     const itemRe = /<li\b[^>]*>([\s\S]*?)<\/li>/gi;
     let item;
-    while ((item = itemRe.exec(m[3])) && specs.length < 60) {
+    while ((item = itemRe.exec(m[3])) && specs.length < 100) {
       const boldLabel = item[1].match(/<(strong|b)\b[^>]*>([\s\S]*?)<\/\1>\s*([\s\S]*)/i);
       if (boldLabel) add(boldLabel[2], boldLabel[3]);
       else {
@@ -364,7 +426,22 @@ function extractSpecs(html, ld = {}, products = []) {
     }
   }
 
-  return specs.slice(0, 30);
+  return specs.slice(0, 100);
+}
+
+function featuresFromSpecs(specs, evidence = '') {
+  const featureKeys = /^(?:other|others|feature|features|key\s+features|highlights?|special\s+features?)$/i;
+  const lines = [];
+  for (const row of specs || []) {
+    if (!featureKeys.test(String(row.k || '').trim())) continue;
+    for (const line of String(row.v || '').split(/\n|•|·|\s{2,}/)) {
+      if (line.trim()) lines.push(line.trim());
+    }
+  }
+  const noise = /^(shipping|return|refund|warranty policy|payment|delivery|terms|privacy|sign in|login|cart|contact us|home|menu|search|compare|wishlist|add to cart|buy now)$/i;
+  return [...new Set(lines.map((line) => String(line).replace(/\s+/g, ' ').trim()))]
+    .filter((line) => line.length >= 3 && line.length <= 220 && !noise.test(line))
+    .slice(0, 12);
 }
 
 /* Step 5 — KEY FEATURES extraction: product-page bullet lists (<ul>/<ol> <li>).
@@ -458,6 +535,8 @@ function extract(html, pageUrl) {
     : categoryValue) || metaContent(html, 'product:category') ||
     metaContent(html, 'product:category_name') || metaContent(html, 'og:category') ||
     metaContent(html, 'article:section');
+  const productIdText = bodyText.match(/(?:product\s*(?:id|code)|sku|model\s*(?:no|number)|part\s*(?:no|number))\s*[:#-]?\s*([a-z0-9][a-z0-9._/-]{2,60})/i);
+  const specs = extractSpecs(html, ld, products);
 
   return {
     name,
@@ -467,18 +546,36 @@ function extract(html, pageUrl) {
     comparePrice: extractComparePrice(html, ld, parseFloat(offers.price || metaContent(html, 'product:price:amount')) || extractPrice(bodyText)),
     currency: offers.priceCurrency || metaContent(html, 'product:price:currency') || 'BDT',
     availability: /instock|in[_-]?stock/i.test(String(offers.availability || '')) ? 'in_stock' : (/preorder/i.test(String(offers.availability || '')) ? 'preorder' : ''),
-    sku: String(ld.sku || metaContent(html, 'product:sku') || metaContent(html, 'sku') || '').slice(0, 60),
+    sku: String(ld.sku || metaContent(html, 'product:sku') || metaContent(html, 'sku') || (productIdText && productIdText[1]) || '').slice(0, 60),
     shortDesc: (stripTags(ld.description || ogDesc) || '').slice(0, 600),
-    specs: extractSpecs(html, ld, products),
-    features: extractFeatures(html, evidence), // product-specific bullet lists
+    specs,
+    features: [...new Set([...extractFeatures(html, evidence), ...featuresFromSpecs(specs, evidence)])].slice(0, 12), // product-specific bullets + multiline feature rows
     images: [...new Set([...ldImages, ...imgs])].slice(0, 12),
     ldPriceCurrencyOk: !offers.price || String(offers.priceCurrency || 'BDT').toUpperCase() === 'BDT',
   };
 }
 
 /* ---------- 4. rewrite ---------- */
+function normalizedSpecPairs(...sources) {
+  const out = [];
+  const seen = new Set();
+  for (const source of sources) {
+    for (const row of Array.isArray(source) ? source : []) {
+      const k = String(row?.k ?? row?.[0] ?? '').trim().slice(0, 80);
+      const v = String(row?.v ?? row?.[1] ?? '').trim().slice(0, 300);
+      const key = k.toLowerCase();
+      if (!k || !v || seen.has(key)) continue;
+      seen.add(key);
+      out.push({ k, v });
+      if (out.length >= 30) return out;
+    }
+  }
+  return out;
+}
+
 function templateRewrite(ex) {
-  const specLines = (ex.specs || []).slice(0, 8).map((s) => `${s.k}: ${s.v}`).join(' · ');
+  const specs = normalizedSpecPairs(ex.specs);
+  const specLines = specs.slice(0, 8).map((s) => `${s.k}: ${s.v}`).join(' · ');
   const name = String(ex.name || '').trim();
   const shortDesc = String(ex.shortDesc || '').trim();
   const descParts = [];
@@ -491,7 +588,7 @@ function templateRewrite(ex) {
     shortDescBn: '',
     description: descParts.join('\n\n').slice(0, 4000),
     descriptionBn: '',
-    specs: ex.specs || [],
+    specs,
     specsBn: [],
     features: ex.features || [], // Step 5 — bullets ride through verbatim
     featuresBn: [],
@@ -502,6 +599,19 @@ function templateRewrite(ex) {
     },
     source: 'template',
   };
+}
+
+function shortlistCatalog(items, query, limit) {
+  const terms = new Set(searchTokens(query));
+  return (items || [])
+    .map((item) => {
+      const text = [item.slug, item.name, item.nameBn, item.path].filter(Boolean).join(' ');
+      const score = searchTokens(text).reduce((sum, token) => sum + (terms.has(token) ? 1 : 0), 0);
+      return { item, score };
+    })
+    .sort((a, b) => b.score - a.score || String(a.item.name || a.item.slug).localeCompare(String(b.item.name || b.item.slug)))
+    .slice(0, limit)
+    .map(({ item }) => item);
 }
 
 async function aiRewrite(ex, catalog = {}) {
@@ -539,13 +649,58 @@ async function aiRewrite(ex, catalog = {}) {
     specifications: (ex.specs || []).slice(0, 14),
     keyFeatures: (ex.features || []).slice(0, 8), // Step 5
   };
-  const categories = (catalog.categories || []).slice(0, 250).map((c) => ({
+  const allCategories = (catalog.categories || []).map((c) => ({
     slug: c.slug,
     name: c.name,
     nameBn: c.nameBn || '',
     path: (c.path || []).join(' > '),
   }));
-  const brands = (catalog.brands || []).slice(0, 150).map((b) => ({ slug: b.slug, name: b.name }));
+  const allBrands = (catalog.brands || []).map((b) => ({ slug: b.slug, name: b.name }));
+  const catalogQuery = [ex.name, ex.brandGuess, ex.categoryGuess, ex.shortDesc, ...(ex.specs || []).slice(0, 8).map((s) => `${s.k} ${s.v}`)].join(' ');
+  const categories = shortlistCatalog(allCategories, catalogQuery, 40);
+  const brands = shortlistCatalog(allBrands, `${ex.name} ${ex.brandGuess}`, 30);
+
+  /* Catalog detection is a separate small request. The previous single
+     request sent every category and brand alongside the rewrite prompt and
+     could exceed a hosted provider's TPM limit. */
+  const detectionSchema = {
+    type: 'OBJECT',
+    properties: {
+      categorySlug: { type: 'STRING' },
+      categoryConfidence: { type: 'NUMBER' },
+      brandSlug: { type: 'STRING' },
+      brandConfidence: { type: 'NUMBER' },
+    },
+  };
+  let detected = { categorySlug: '', categoryConfidence: 0, brandSlug: '', brandConfidence: 0 };
+  try {
+    const detectionOut = await provider.complete({
+      system: 'Choose the best exact category and brand slug from the supplied short candidate lists. Return strict JSON only. Use an empty slug and confidence 0 when uncertain.',
+      messages: [{
+        role: 'user',
+        content: 'PRODUCT: ' + JSON.stringify({ name: ex.name, brand: ex.brandGuess, category: ex.categoryGuess, specs: (ex.specs || []).slice(0, 8) }) +
+          '\nCATEGORY CANDIDATES: ' + JSON.stringify(categories) +
+          '\nBRAND CANDIDATES: ' + JSON.stringify(brands),
+      }],
+      json: true,
+      responseSchema: detectionSchema,
+      temperature: 0,
+      maxTokens: 300,
+    });
+    const d = provider.parseJsonLoose(detectionOut.text) || {};
+    detected = {
+      categorySlug: String(d.categorySlug || ''),
+      categoryConfidence: d.categoryConfidence,
+      brandSlug: String(d.brandSlug || ''),
+      brandConfidence: d.brandConfidence,
+    };
+  } catch (error) {
+    console.warn('[ai-import] catalog detection unavailable; continuing without AI detection:', error.message);
+  }
+  const detectedCategory = validateCatalogGuess(detected.categorySlug, detected.categoryConfidence, categories);
+  const detectedBrand = validateCatalogGuess(detected.brandSlug, detected.brandConfidence, brands);
+  const selectedCategory = categories.find((c) => c.slug === detectedCategory.slug) || null;
+  const selectedBrand = brands.find((b) => b.slug === detectedBrand.slug) || null;
   const out = await provider.complete({
     system: [
       'You are the SEO copywriter for arixgear.tech, a Bangladeshi tech & gadget store (BDT ৳).',
@@ -553,8 +708,7 @@ async function aiRewrite(ex, catalog = {}) {
       'Hard rules: use ONLY facts present in the raw data — never invent specs, numbers or features;',
       'do not mention the source website; do not copy the source description verbatim — rephrase;',
       'write natural, professional English AND natural Bangla (Bengali script).',
-      'For category and brand detection, choose only an exact slug from the supplied catalogs; use an empty string when uncertain.',
-      'Choose the deepest applicable existing category. Do not create categories or brands.',
+      'Use only the supplied selected category and brand values; do not create categories or brands.',
       'Return categoryConfidence and brandConfidence as numbers from 0 to 1; keep them low when evidence is weak.',
       'Return STRICT JSON only, matching this valid JSON shape: {"name":"...","nameBn":"...","shortDesc":"...","shortDescBn":"...","description":"...","descriptionBn":"...",',
       '"specs":[{"k":"...","v":"..."}],"specsBn":[{"k":"...","v":"..."}],"features":["..."],"featuresBn":["..."],',
@@ -563,36 +717,50 @@ async function aiRewrite(ex, catalog = {}) {
     ].join(' '),
     messages: [{
       role: 'user',
-      content: 'RAW PRODUCT DATA AND ALLOWED CATALOG VALUES:\n' + JSON.stringify({ facts, categories, brands }, null, 1),
+      content: 'RAW PRODUCT DATA AND SELECTED CATALOG VALUES:\n' + JSON.stringify({ facts, selectedCategory, selectedBrand }, null, 1),
     }],
     json: true,
     responseSchema,
     temperature: 0.5,
-    maxTokens: 1600,
+    maxTokens: 1100,
   });
   const j = provider.parseJsonLoose(out.text);
   if (!j || !j.name) throw new Error('AI rewrite returned unusable JSON');
-  const category = validateCatalogGuess(j.categorySlug, j.categoryConfidence, categories);
-  const brand = validateCatalogGuess(j.brandSlug, j.brandConfidence, brands);
+  const category = validateCatalogGuess(j.categorySlug || detectedCategory.slug, j.categoryConfidence ?? detectedCategory.confidence, allCategories);
+  const brand = validateCatalogGuess(j.brandSlug || detectedBrand.slug, j.brandConfidence ?? detectedBrand.confidence, allBrands);
   const strArr = (x) => (Array.isArray(x) ? x.map((s) => String(s || '').trim().slice(0, 300)).filter(Boolean).slice(0, 12) : []);
+  const template = templateRewrite(ex);
+  const textOr = (value, fallback) => String(value || '').trim() || String(fallback || '').trim();
+  const name = textOr(j.name, ex.name);
+  const shortDesc = textOr(j.shortDesc, ex.shortDesc || name);
+  const shortDescBn = textOr(j.shortDescBn, j.nameBn || shortDesc);
+  const description = textOr(j.description, template.description || shortDesc);
+  const descriptionBn = textOr(j.descriptionBn, shortDescBn || description);
+  const seoTitle = textOr(j.seo?.metaTitle, `${name} | ArixGear`).slice(0, 200);
+  const seoDescription = textOr(j.seo?.metaDescription, shortDesc || description).slice(0, 300);
+  const specs = normalizedSpecPairs(ex.specs);
+  /* If extraction found no pairs, retain a model-returned spec list as a
+     secondary fallback. When extraction did find specs, it remains the source
+     of truth and model output cannot replace it with invented rows. */
+  if (!specs.length) specs.push(...normalizedSpecPairs(j.specs));
   return {
     content: {
-      name: String(j.name).slice(0, 220),
-      nameBn: String(j.nameBn || '').slice(0, 220),
-      shortDesc: String(j.shortDesc || '').slice(0, 500),
-      shortDescBn: String(j.shortDescBn || '').slice(0, 500),
-      description: String(j.description || '').slice(0, 6000),
-      descriptionBn: String(j.descriptionBn || '').slice(0, 6000),
-      specs: (ex.specs || []).slice(0, 30).map((s) => ({ k: String(s.k).slice(0, 80), v: String(s.v).slice(0, 300) })),
+      name: name.slice(0, 220),
+      nameBn: textOr(j.nameBn, name).slice(0, 220),
+      shortDesc: shortDesc.slice(0, 500),
+      shortDescBn: shortDescBn.slice(0, 500),
+      description: description.slice(0, 6000),
+      descriptionBn: descriptionBn.slice(0, 6000),
+      specs,
       specsBn: [],
       /* Raw extracted bullets are the source of truth for product features;
          the model may rewrite copy, but must not invent or mix feature lists. */
       features: (ex.features || []).slice(0, 12),
       featuresBn: strArr(j.featuresBn).slice(0, (ex.features || []).length),
       seo: {
-        metaTitle: String(j.seo?.metaTitle || '').slice(0, 200),
-        metaDescription: String(j.seo?.metaDescription || '').slice(0, 300),
-        metaKeywords: String(j.seo?.metaKeywords || '').slice(0, 500),
+        metaTitle: seoTitle,
+        metaDescription: seoDescription,
+        metaKeywords: textOr(j.seo?.metaKeywords, [name, ex.brandGuess].filter(Boolean).join(', ')).slice(0, 500),
       },
       source: 'ai',
     },
@@ -648,21 +816,91 @@ async function detectDuplicates(ex, sourceUrl) {
 }
 
 /* ---------- 5. images ---------- */
-async function rehostImages(images, maxImages) {
-  const { cloudinary, isCloudinaryEnabled } = require('../../config/cloudinary');
-  const list = images.filter((u) => /^https?:\/\//i.test(u)).slice(0, maxImages);
-  if (!isCloudinaryEnabled) return list.map((url) => ({ url, publicId: '' }));
-  const out = [];
-  for (const url of list) {
+async function fetchImageBuffer(url) {
+  let current = url;
+  for (let hop = 0; hop < 4; hop++) {
+    await assertFetchable(current);
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 15000);
     try {
-      const r = await cloudinary.uploader.upload(url, { folder: 'arixgear/imports', overwrite: false, timeout: 20000 });
-      out.push({ url: r.secure_url, publicId: r.public_id });
-    } catch (e) {
-      console.warn('[ai-import] cloudinary upload failed, keeping remote URL:', e.message);
-      out.push({ url, publicId: '' });
+      const res = await fetch(current, {
+        signal: ctrl.signal,
+        redirect: 'manual',
+        headers: {
+          'User-Agent': 'ArixGearImportBot/1.0 (+https://arixgear.tech/ai-import)',
+          Accept: 'image/avif,image/webp,image/apng,image/*,*/*;q=0.8',
+        },
+      });
+      if (REDIRECT_STATUSES.has(res.status)) {
+        const location = res.headers.get('location');
+        if (!location) throw new Error(`Image redirect ${res.status} has no target`);
+        current = new URL(location, current).toString();
+        continue;
+      }
+      if (!res.ok) throw new Error(`Image source returned HTTP ${res.status}`);
+      const type = String(res.headers.get('content-type') || '').toLowerCase();
+      if (!type.startsWith('image/')) throw new Error(`Image source returned ${type || 'an unknown content type'}`);
+      const declared = Number(res.headers.get('content-length') || 0);
+      if (declared > 12 * 1024 * 1024) throw new Error('Image is larger than 12MB');
+      let size = 0;
+      const chunks = [];
+      for await (const chunk of res.body) {
+        size += chunk.length;
+        if (size > 12 * 1024 * 1024) throw new Error('Image is larger than 12MB');
+        chunks.push(Buffer.from(chunk));
+      }
+      return Buffer.concat(chunks);
+    } finally { clearTimeout(timer); }
+  }
+  throw new Error('Too many image redirects');
+}
+
+function uploadImageBuffer(cloudinary, buffer) {
+  return new Promise((resolve, reject) => {
+    const stream = cloudinary.uploader.upload_stream(
+      { folder: 'arixgear/imports', overwrite: false, resource_type: 'image' },
+      (error, result) => error ? reject(error) : resolve(result),
+    );
+    stream.end(buffer);
+  });
+}
+
+async function uploadRemoteImage(cloudinary, url) {
+  try {
+    return await cloudinary.uploader.upload(url, { folder: 'arixgear/imports', overwrite: false, timeout: 20000 });
+  } catch (directError) {
+    /* Some origins reject Cloudinary's fetcher but allow a normal server-side
+       request. Download through the guarded backend and upload the bytes. */
+    const buffer = await fetchImageBuffer(url);
+    try { return await uploadImageBuffer(cloudinary, buffer); }
+    catch (bufferError) {
+      bufferError.message = `${directError.message}; buffered upload: ${bufferError.message}`;
+      throw bufferError;
     }
   }
-  return out;
+}
+
+async function rehostImages(images, maxImages) {
+  const { cloudinary, isCloudinaryEnabled } = require('../../config/cloudinary');
+  const list = [...new Set((images || []).filter((u) => /^https?:\/\//i.test(u)))].slice(0, maxImages);
+  if (!isCloudinaryEnabled) return list.map((url) => ({ url, publicId: '' }));
+  const out = new Array(list.length);
+  let cursor = 0;
+  const worker = async () => {
+    while (cursor < list.length) {
+      const index = cursor++;
+      const url = list[index];
+      try {
+        const r = await uploadRemoteImage(cloudinary, url);
+        out[index] = { url: r.secure_url, publicId: r.public_id };
+      } catch (e) {
+        console.warn('[ai-import] cloudinary upload failed, keeping remote URL:', e.message);
+        out[index] = { url, publicId: '' };
+      }
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(3, list.length) }, () => worker()));
+  return out.filter(Boolean);
 }
 
 /* ---------- imports (top of file already has specsUtil via lazy require) ---------- */
@@ -907,6 +1145,10 @@ async function processImport(id) {
     const extracted = { ...ex, specs: ex.specs, images: ex.images, features: ex.features };
     const host = new URL(finalUrl).hostname;
     await persist({ extracted, host, progress: 55 });
+    /* Image re-hosting is independent of AI rewriting; start it now so a slow
+       provider does not add the image-upload time to the import critical path. */
+    const cfgPromise = AiSetting.get();
+    const imagesPromise = cfgPromise.then((cfg) => rehostImages(ex.images, cfg.import?.maxImages || 8));
 
     const dups = await detectDuplicates(ex, doc.sourceUrl);
     const duplicates = dups.filter((d) => d.productId);
@@ -939,6 +1181,10 @@ async function processImport(id) {
         metaProvider = 'template';
       }
     }
+    /* Keep extraction as the final source of truth for specs. This also
+       repairs older/staged imports whose template content was saved without
+       the specs array, so approval can still auto-create the schema fields. */
+    content.specs = normalizedSpecPairs(content.specs, ex.specs);
     const autoDetect = {
       categorySource: detection.categorySource,
       categoryConfidence: detection.categoryConfidence,
@@ -960,8 +1206,7 @@ async function processImport(id) {
       if (matchedBrand) brand = matchedBrand._id;
     }
 
-    const cfg = await AiSetting.get();
-    const images = await rehostImages(ex.images, cfg.import?.maxImages || 8);
+    const images = await imagesPromise;
     await persist({
       price,
       comparePrice,
@@ -1113,8 +1358,7 @@ async function approveImport(id, edits, adminUser) {
      aiContent.specs an empty — truthy — array that used to shadow the
      extraction when an import was staged without a rewrite pass) */
   const pickList = (...cands) => cands.find((x) => Array.isArray(x) && x.length) || [];
-  const specs = pickList(b.specs, content.specs, doc.extracted?.specs)
-    .map((s) => ({ k: String(s.k).slice(0, 80), v: String(s.v).slice(0, 300) }));
+  const specs = normalizedSpecPairs(b.specs, content.specs, doc.extracted?.specs);
 
   /* Step 5 — THE AUTO-CREATION HOOK. Every extracted attribute/group that the
      website doesn't have yet is created in the category's specGroups schema
@@ -1261,8 +1505,7 @@ async function updateExistingImport(id, edits, adminUser, targetId) {
 
   /* specs → canonical specValues against the TARGET's category schema, with
      the auto-create hook (unknown extracted attributes materialize there) */
-  const specs = pickList(b.specs, content.specs, doc.extracted?.specs)
-    .map((s) => ({ k: String(s.k).slice(0, 80), v: String(s.v).slice(0, 300) }));
+  const specs = normalizedSpecPairs(b.specs, content.specs, doc.extracted?.specs);
   if (specs.length) {
     const catDoc = await Category.findOne({ slug: target.category });
     const schema = specsUtil.normalizeSpecGroups((catDoc && catDoc.specGroups) || []);

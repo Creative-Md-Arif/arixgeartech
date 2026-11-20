@@ -51,9 +51,19 @@ export default function FlashSalePage() {
   const load = useCallback(async () => {
     try {
       const d = await api('/products/flash');
-      const list = (d.items || []).map((p) => adaptOne({ ...p, images: p.images, sizeStocks: p.sizeStocks, sizePrices: p.sizePrices, colors: p.colors })).filter(Boolean);
+      const list = (d.items || [])
+        .map((p) => adaptOne({ ...p, images: p.images, sizeStocks: p.sizeStocks, sizePrices: p.sizePrices, colors: p.colors }))
+        .filter(Boolean);
       setItems(list);
-      setDead(list.length ? Math.min(...list.map((p) => +new Date(p.flash.endsAt))) : null);
+      /* A cheaper active deal can replace the flash marker during adaptOne().
+         Keep the API products visible, but only use valid flash dates for the
+         page-level countdown. */
+      const ends = list
+        .map((p) => p.flash?.endsAt)
+        .filter(Boolean)
+        .map((date) => +new Date(date))
+        .filter(Number.isFinite);
+      setDead(ends.length ? Math.min(...ends) : null);
     } catch { setItems([]); setDead(null); }
   }, []);
 

@@ -238,14 +238,12 @@ function DealsPage() {
     try {
       const params = new URLSearchParams();
       if (fType) params.set('type', fType);
+      if (fStatus) params.set('status', fStatus);
       if (q) params.set('q', q);
       const [r, mm, ss] = await Promise.all([
         list(params.toString()), meta().catch(() => null), stats().catch(() => null),
       ]);
-      // status filter is computed server-side; filter client-side for instant chips
-      let rows = r.items || [];
-      if (fStatus) rows = rows.filter((d) => d.status === fStatus);
-      setItems(rows);
+      setItems(r.items || []);
       if (mm) setM(mm);
       if (ss) setSt(ss);
       setErr('');

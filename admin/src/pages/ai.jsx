@@ -943,6 +943,83 @@ function ImportDetail({ item: initial, onBack }) {
 
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
+  /* Paste a copied spreadsheet/table or a plain "Label: value" list into
+     any spec row. */
+  const parseSpecPaste = (raw) => {
+    const text = String(raw || "")
+      .replace(/\u00a0/g, " ")
+      .replace(/\r/g, "")
+      .trim();
+    if (!text) return [];
+    const rows = [];
+    const add = (k, v) => {
+      const key = String(k || "").replace(/^[•·\-*\s]+/, "").trim();
+      const value = String(v || "").replace(/^[：:|\-\s]+/, "").trim();
+      if (!key || !value || key.length > 100 || value.length > 500) return;
+      if (!rows.some((row) => row.k.toLowerCase() === key.toLowerCase()))
+        rows.push({ k: key, v: value });
+    };
+    for (const line of text.split("\n").map((item) => item.trim()).filter(Boolean)) {
+      const cells = line.split(/\t+/).map((item) => item.trim()).filter(Boolean);
+      if (cells.length >= 2) {
+        add(cells[0], cells.slice(1).join(" "));
+        continue;
+      }
+      const match = line.match(/^([^:：|]{2,100})\s*[:：|]\s*(.+)$/);
+      if (match) add(match[1], match[2]);
+    }
+    /* Also accept copied two-line pairs: Label newline Value. */
+    if (!rows.length) {
+      const lines = text.split("\n").map((item) => item.trim()).filter(Boolean);
+      for (let i = 0; i + 1 < lines.length; i += 2) add(lines[i], lines[i + 1]);
+    }
+    return rows;
+  };
+  const handleSpecPaste = (event) => {
+    const pasted = parseSpecPaste(event.clipboardData?.getData("text/plain"));
+    if (pasted.length < 1) return;
+    event.preventDefault();
+    setSpecs((list) => {
+      const existing = list.filter((row) => String(row.k || "").trim() || String(row.v || "").trim());
+      const seen = new Set(existing.map((row) => String(row.k || "").trim().toLowerCase()));
+      return [...existing, ...pasted.filter((row) => {
+        const key = row.k.toLowerCase();
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      })];
+    });
+    setMapping(null);
+    toast(`${pasted.length} specification row(s) appended from clipboard`, "ok");
+  };
+  const parseFeaturePaste = (raw) => {
+    const text = String(raw || "").replace(/\u00a0/g, " ").replace(/\r/g, "").trim();
+    if (!text) return [];
+    const values = text
+      .split(/\n|\t|[•·]/)
+      .map((value) => String(value).replace(/^[\-*✓✔\s]+/, "").trim())
+      .filter((value) => value.length >= 2 && value.length <= 300);
+    return [...new Set(values.map((value) => value.toLowerCase()))]
+      .map((key) => values.find((value) => value.toLowerCase() === key))
+      .slice(0, 30);
+  };
+  const handleFeaturePaste = (event) => {
+    const pasted = parseFeaturePaste(event.clipboardData?.getData("text/plain"));
+    if (pasted.length < 1) return;
+    event.preventDefault();
+    setFeatures((list) => {
+      const existing = list.map((value) => String(value || "").trim()).filter(Boolean);
+      const seen = new Set(existing.map((value) => value.toLowerCase()));
+      return [...existing, ...pasted.filter((value) => {
+        const key = value.toLowerCase();
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      })];
+    });
+    toast(`${pasted.length} key feature(s) appended from clipboard`, "ok");
+  };
+
   /* Step 5 — schema-mapping preview: which extracted attributes already exist
      in the target category (→ mapped) and which will be AUTO-CREATED. */
   const targetCat = (cats || []).find((c) => c.slug === form.category);
@@ -954,16 +1031,39 @@ function ImportDetail({ item: initial, onBack }) {
         out.push({
           key: f.key,
           label: String(f.label || "").toLowerCase(),
-          labelBn: f.labelBn,
+          labelBn: String(f.labelBn || "").toLowerCase(),
+          aliases: Object.keys(f.aliases || {}).map((key) => key.toLowerCase()),
+          type: f.type || "text",
+          unit: f.unit || "",
+          group: g.label || "Specifications",
         });
     return out;
   }, [targetCat]);
-  const isKnown = (k) =>
-    schemaFields.some(
-      (f) =>
-        f.key === String(k).toLowerCase().trim() ||
-        f.label === String(k).toLowerCase().trim(),
+  const seededSchemaCategory = useRef("");
+  useEffect(() => {
+    const categoryKey = String(targetCat?._id || targetCat?.slug || "");
+    if (!categoryKey || seededSchemaCategory.current === categoryKey) return;
+    seededSchemaCategory.current = categoryKey;
+    const schemaRows = (targetCat.specGroups || []).flatMap((group) =>
+      (group.fields || []).map((field) => ({
+        k: field.label || field.key || "",
+        v: "",
+      })),
+    ).filter((row) => row.k);
+    if (!schemaRows.length) return;
+    setSpecs((list) => {
+      const hasProductSpecs = list.some((row) => String(row.k || "").trim() && String(row.v || "").trim());
+      return hasProductSpecs ? list : schemaRows;
+    });
+  }, [targetCat]);
+  const schemaFieldFor = (key) => {
+    const want = String(key || "").toLowerCase().trim();
+    return schemaFields.find((field) =>
+      field.key === want || field.label === want || field.labelBn === want || field.aliases.includes(want),
     );
+  };
+  const isKnown = (k) =>
+    Boolean(schemaFieldFor(k));
   const newCount = specs.filter((s) => s.k && !isKnown(s.k)).length;
 
   /* Step 6 — AI-ASSISTED SCHEMA MAPPING. The backend suggests type + filterable
@@ -1221,10 +1321,12 @@ function ImportDetail({ item: initial, onBack }) {
   };
 
   const approve = async () => {
+    if (saving) return;
     if (form.categoryMode === "manual" && !form.categoryName.trim()) {
       toast("Enter a category name", "err");
       return;
     }
+    setSaving(true);
     const payload = {
       name: form.name,
       nameBn: form.nameBn,
@@ -1244,6 +1346,12 @@ function ImportDetail({ item: initial, onBack }) {
       specs,
       features: features.map((f) => String(f).trim()).filter(Boolean),
       featuresBn: featuresBn.map((f) => String(f).trim()).filter(Boolean),
+      aiContent: {
+        seo: {
+          metaTitle: form.seoTitle,
+          metaDescription: form.seoDesc,
+        },
+      },
     };
     if (mode === "update") {
       const tgt = dupTargets.find((d) => String(d.productId._id) === targetId);
@@ -1258,7 +1366,10 @@ function ImportDetail({ item: initial, onBack }) {
           ok: "Update product",
         }))
       )
+      {
+        setSaving(false);
         return;
+      }
       try {
         const r = await AI.importApprove(item._id, {
           ...payload,
@@ -1270,6 +1381,8 @@ function ImportDetail({ item: initial, onBack }) {
         onBack();
       } catch (e) {
         toast(e.message, "err");
+      } finally {
+        setSaving(false);
       }
       return;
     }
@@ -1280,13 +1393,18 @@ function ImportDetail({ item: initial, onBack }) {
         ok: "Approve & publish",
       }))
     )
+    {
+      setSaving(false);
       return;
+    }
     try {
       const r = await AI.importApprove(item._id, payload);
       toast(`Product created → /product/${r.product.slug}`);
       onBack();
     } catch (e) {
       toast(e.message, "err");
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -1365,8 +1483,13 @@ function ImportDetail({ item: initial, onBack }) {
             </button>
           ) : null}
           {item.status !== "imported" ? (
-            <button onClick={approve} id="aiApprove" className={ACC_BTN}>
-              Approve → Product
+            <button
+              onClick={approve}
+              id="aiApprove"
+              className={ACC_BTN + " disabled:opacity-50"}
+              disabled={saving}
+            >
+              {saving ? "Approving…" : "Approve → Product"}
             </button>
           ) : null}
           <button onClick={remove} className={RED_BTN}>
@@ -1569,8 +1692,8 @@ function ImportDetail({ item: initial, onBack }) {
         </div>
       ) : null}
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <div className={CARD + " lg:col-span-2 space-y-3"}>
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
+        <div className={CARD + " lg:col-span-3 space-y-3"}>
           <h3 className="font-head text-[13px] font-bold uppercase tracking-[.12em] text-txt">
             AI-rewritten content (editable)
           </h3>
@@ -1657,7 +1780,7 @@ function ImportDetail({ item: initial, onBack }) {
           </button>
         </div>
 
-        <div className="space-y-4">
+        <div className="space-y-4 lg:col-span-2">
           <div className={CARD + " space-y-3"}>
             <h3 className="font-head text-[13px] font-bold uppercase tracking-[.12em] text-txt">
               Pricing & catalog mapping
@@ -1846,7 +1969,7 @@ function ImportDetail({ item: initial, onBack }) {
             </div>
           </div>
 
-          <div className={CARD}>
+          <div className={CARD + " min-w-0"}>
             {/* Step 5 — extracted specs are EDITABLE and schema-mapped; unknown
                 attributes materialize in the category schema on approve.
                 Step 6 — 🤖 mapping suggestions (type + filterable) per row. */}
@@ -1886,9 +2009,22 @@ function ImportDetail({ item: initial, onBack }) {
                 </button>
               </span>
             </h3>
+            <p className="mt-1 text-[10.5px] text-dim2">
+              Paste a copied table, tab-separated rows, or <code>Label: value</code> lines into any spec field to auto-format them.
+            </p>
+            {targetCat && schemaFields.length ? (
+              <p className="mt-1 text-[10.5px] text-dim2">
+                {schemaFields.length} field(s) loaded from the <b>{targetCat.name}</b> category schema. Empty schema fields are only a guide and are not saved until a value is entered.
+              </p>
+            ) : targetCat ? (
+              <p className="mt-1 text-[10.5px] text-acc">
+                This category has no saved spec schema yet. Add a valued row; it will create the new schema field when approved.
+              </p>
+            ) : null}
             <div className="mt-2 max-h-64 space-y-1.5 overflow-y-auto text-[11.5px]">
               {specs.map((s, i) => {
                 const m = mapFor(s.k);
+                const schemaField = schemaFieldFor(s.k);
                 return (
                   <div
                     key={i}
@@ -1898,18 +2034,19 @@ function ImportDetail({ item: initial, onBack }) {
                     <span
                       className={
                         "h-1.5 w-1.5 shrink-0 rounded-full " +
-                        (isKnown(s.k) ? "bg-green" : "bg-acc")
+                        (schemaField ? "bg-green" : "bg-acc")
                       }
                       title={
-                        isKnown(s.k)
-                          ? "maps to an existing field"
+                        schemaField
+                          ? `maps to ${schemaField.group}${schemaField.unit ? ` · unit: ${schemaField.unit}` : ""}`
                           : "auto-creates a new field on approve"
                       }
                     />
                     <input
                       value={s.k}
                       aria-label={"Spec label " + (i + 1)}
-                      className={INP + " w-[34%] px-2 py-1 text-[11px]"}
+                      onPaste={handleSpecPaste}
+                      className={INP + " w-[42%] min-w-[130px] px-2 py-1 text-[11px]"}
                       onChange={(e) =>
                         setSpecs((list) =>
                           list.map((x, ix) =>
@@ -1921,7 +2058,8 @@ function ImportDetail({ item: initial, onBack }) {
                     <input
                       value={s.v}
                       aria-label={"Spec value " + (i + 1)}
-                      className={INP + " flex-1 px-2 py-1 text-[11px]"}
+                      onPaste={handleSpecPaste}
+                      className={INP + " min-w-0 flex-1 px-2 py-1 text-[11px]"}
                       onChange={(e) =>
                         setSpecs((list) =>
                           list.map((x, ix) =>
@@ -1984,6 +2122,9 @@ function ImportDetail({ item: initial, onBack }) {
             <h3 className="font-head text-[13px] font-bold uppercase tracking-[.12em] text-txt">
               Key features ({features.filter((f) => String(f).trim()).length})
             </h3>
+            <p className="mt-1 text-[10.5px] text-dim2">
+              Paste one feature per line, tab, or bullet. New features are appended and duplicates are skipped.
+            </p>
             <div className="mt-2 space-y-1.5">
               {features.map((f, i) => (
                 <div
@@ -1995,6 +2136,7 @@ function ImportDetail({ item: initial, onBack }) {
                   <input
                     value={f}
                     aria-label={"Feature " + (i + 1)}
+                    onPaste={handleFeaturePaste}
                     className={INP + " flex-1 px-2 py-1 text-[11px]"}
                     onChange={(e) =>
                       setFeatures((list) =>
@@ -2334,30 +2476,39 @@ function ChatsSection() {
   const [testOut, setTestOut] = useState(null);
   const [testBusy, setTestBusy] = useState(false);
   const [q, setQ] = useState("");
+  const [debouncedQ, setDebouncedQ] = useState("");
   const [loading, setLoading] = useState(true);
+  const chatRequestId = useRef(0);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedQ(q.trim()), 400);
+    return () => clearTimeout(timer);
+  }, [q]);
 
   const load = useCallback(async () => {
+    const requestId = ++chatRequestId.current;
     setLoading(true);
     try {
       const params = new URLSearchParams();
       if (channel !== "all") params.set("channel", channel);
-      if (q.trim()) params.set("q", q.trim());
+      if (debouncedQ) params.set("q", debouncedQ);
       params.set("page", String(page));
       params.set("limit", "40");
       const d = await AI.chatList(params.toString());
+      if (requestId !== chatRequestId.current) return;
       setItems(d.items || []);
       setTotal(d.total || 0);
       setPages(d.pages || 1);
     } catch (e) {
-      toast(e.message, "err");
+      if (requestId === chatRequestId.current) toast(e.message, "err");
     } finally {
-      setLoading(false);
+      if (requestId === chatRequestId.current) setLoading(false);
     }
-  }, [channel, q, page]);
+  }, [channel, debouncedQ, page, toast]);
   useEffect(() => {
     load();
   }, [load]);
-  useEffect(() => { setPage(1); }, [channel, q]);
+  useEffect(() => { setPage(1); }, [channel, debouncedQ]);
 
   const openSession = async (id) => {
     try {
@@ -2728,7 +2879,7 @@ function SettingsSection() {
       if (d.settings?.apiKey === "\u2022".repeat(8))
         masked.push("Gemini API key");
       if (d.settings?.openai?.apiKey === "\u2022".repeat(8))
-        masked.push("OpenAI-compatible endpoint API key");
+        masked.push("Ollama Cloud / endpoint API key");
       setInitialMasked(masked);
     } catch (e) {
       toast(e.message, "err");
@@ -2759,6 +2910,15 @@ function SettingsSection() {
     set("openai.baseUrl", "https://openrouter.ai/api/v1");
     set("openai.model", "openrouter/free");
   };
+  const useOllamaCloud = () => {
+    set("provider", "openai");
+    set("openai.baseUrl", "https://ollama.com/v1");
+  };
+  const useLocalOllama = () => {
+    set("provider", "openai");
+    set("openai.baseUrl", "http://127.0.0.1:11434/v1");
+    set("openai.apiKey", "");
+  };
   const suggestionsText = (arr) => (arr || []).join("\n");
   const suggestionsArr = (t) =>
     t
@@ -2771,7 +2931,7 @@ function SettingsSection() {
        secret on the backend; ask before destroying */
     for (const [label, v] of [
       ["Gemini API key", s.apiKey],
-      ["OpenAI-compatible endpoint API key", s.openai?.apiKey],
+      ["Ollama Cloud / endpoint API key", s.openai?.apiKey],
     ]) {
       if (v === "" && initialMasked.includes(label)) {
         // eslint-disable-next-line no-alert
@@ -2840,6 +3000,12 @@ function SettingsSection() {
           <button type="button" className={GHOST_BTN} onClick={useOpenRouterFree}>
             Use OpenRouter free-only preset
           </button>
+          <button type="button" className={GHOST_BTN} onClick={useOllamaCloud}>
+            Use Ollama Cloud
+          </button>
+          <button type="button" className={GHOST_BTN} onClick={useLocalOllama}>
+            Use local Ollama
+          </button>
           <a
             className={GHOST_BTN}
             href="https://openrouter.ai/keys"
@@ -2847,6 +3013,14 @@ function SettingsSection() {
             rel="noreferrer"
           >
             Create API key ↗
+          </a>
+          <a
+            className={GHOST_BTN}
+            href="https://ollama.com/settings/keys"
+            target="_blank"
+            rel="noreferrer"
+          >
+            Create Ollama API key ↗
           </a>
         </div>
         <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
@@ -2902,7 +3076,7 @@ function SettingsSection() {
         </div>
         <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
           <div>
-            <label className={LBL}>OpenAI-compatible base URL</label>
+            <label className={LBL}>Ollama / compatible endpoint URL</label>
             <input
               value={s.openai.baseUrl}
               onChange={(e) => set("openai.baseUrl", e.target.value)}
@@ -2920,13 +3094,18 @@ function SettingsSection() {
             />
           </div>
           <div>
-            <label className={LBL}>Endpoint API key (optional for local servers)</label>
+            <label className={LBL}>Ollama Cloud / endpoint API key</label>
             <input
               type="password"
               value={s.openai.apiKey}
               onChange={(e) => set("openai.apiKey", e.target.value)}
               className={INP + " w-full"}
+              placeholder="Paste Ollama Cloud API key"
             />
+            <p className="mt-1 text-[10.5px] text-dim2">
+              Ollama Cloud uses this key as a Bearer token; local Ollama usually
+              needs no key. Leave the masked value unchanged to keep the stored key.
+            </p>
           </div>
           <div>
             <label className={LBL}>Max output tokens</label>

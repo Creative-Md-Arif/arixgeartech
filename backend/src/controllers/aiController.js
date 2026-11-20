@@ -16,7 +16,7 @@ async function config(_req, res) {
     greetingBn: cfg.chat.greetingBn,
     suggestions: (cfg.chat.suggestions || []).filter(Boolean),
     suggestionsBn: (cfg.chat.suggestionsBn || []).filter(Boolean),
-    provider: rt.provider === 'rules' ? 'grounded' : rt.provider, // marketing-free internal label
+    provider: rt.provider === 'rules' ? 'grounded' : rt.provider, 
   });
 }
 

@@ -92,6 +92,15 @@ exports.adminList = async (req, res, next) => {
     if (req.query.published === 'false') q.published = false;
     if (req.query.active === 'true') q.active = true;
     if (req.query.active === 'false') q.active = false;
+    const status = String(req.query.status || '').toLowerCase();
+    const statusQuery = {
+      draft: { published: false },
+      paused: { published: true, active: false },
+      scheduled: { published: true, active: true, 'window.startsAt': { $gt: now } },
+      active: { published: true, active: true, 'window.startsAt': { $lte: now }, 'window.endsAt': { $gte: now } },
+      expired: { published: true, active: true, 'window.endsAt': { $lt: now } },
+    };
+    if (status && statusQuery[status]) Object.assign(q, statusQuery[status]);
     if (req.query.q) {
       const rx = new RegExp(String(req.query.q).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
       q.$or = [{ name: rx }, { slug: rx }, { badge: rx }];

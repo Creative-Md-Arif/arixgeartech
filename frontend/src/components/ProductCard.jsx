@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { useStore } from '../store/store.jsx';
 import { useUI } from '../store/ui.jsx';
 import { money } from '../lib/format.js';
@@ -35,6 +36,23 @@ export function badgeChipStyle(p) {
   return { background: bg, color: chipText(bg) };
 }
 
+function useFlashCountdown(target) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!target) return undefined;
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [target]);
+
+  const seconds = Math.max(0, Math.floor((+new Date(target) - now) / 1000));
+  return {
+    ended: Boolean(target) && seconds === 0,
+    h: Math.floor(seconds / 3600),
+    m: Math.floor((seconds % 3600) / 60),
+    s: seconds % 60,
+  };
+}
+
 export default function ProductCard({ p }) {
   const { wish, addToCart, compare, toggleCompare } = useStore();
   const { openPDP, toggleWish } = { ...useUI(), toggleWish: useStore().toggleWish };
@@ -42,6 +60,7 @@ export default function ProductCard({ p }) {
   const bt = badgeText(p);
   const pName = pick(p, 'name');
   const pCat = isBn && p.catBn ? p.catBn : t(p.cat);
+  const flashCountdown = useFlashCountdown(p.flash?.endsAt);
   return (
     <article className="card group relative bg-panel border border-line transition-colors duration-300 hover:border-line2" data-id={p.id}>
       <div className="card-media relative cursor-pointer overflow-hidden" data-open={p.id} onClick={() => openPDP(p.id)}>
@@ -86,6 +105,12 @@ export default function ProductCard({ p }) {
       <div className="flex h-[168px] flex-col p-4">
         <p className="font-cond text-[.78rem] uppercase tracking-[.25em] text-dim">{pCat}</p>
         <h3 className="mt-1 h-10 line-clamp-2 cursor-pointer font-head text-[.95rem] font-700 font-bold leading-5 text-txt transition-colors hover:text-acc" data-open={p.id} onClick={() => openPDP(p.id)}>{pName}</h3>
+        {p.flash && !flashCountdown.ended ? (
+          <div className="mt-1 flex items-center gap-1 font-cond text-[.68rem] font-semibold uppercase tracking-[.12em] text-acc" data-flash-countdown={p.id}>
+            <span>{tr('Ends in')}</span>
+            <b>{String(flashCountdown.h).padStart(2, '0')}:{String(flashCountdown.m).padStart(2, '0')}:{String(flashCountdown.s).padStart(2, '0')}</b>
+          </div>
+        ) : null}
         {/*SHOW-ON-CARD spec chips (schema-driven: RAM/GPU/Storage…).
             The server computes them against the category schema; bn mode uses
             labelBn twins. Empty → the row simply doesn't render.*/}
